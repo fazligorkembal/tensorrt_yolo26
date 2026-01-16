@@ -1,0 +1,21 @@
+version: "3.8"
+
+services:
+  tensorrt_yolo26:
+    build: .
+    runtime: nvidia
+    #ports:
+    # - "6001:6001" # Host 6001 -> Container 6001
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - $HOME/.Xauthority:/root/.Xauthority:rw
+      - ../:/home/user/Documents/tensorrt_yolo26
+    privileged: true
+    environment:
+      - DISPLAY=${DISPLAY}
+      - NVIDIA_VISIBLE_DEVICES=all
+      - NVIDIA_DRIVER_CAPABILITIES=all
+      - QT_X11_NO_MITSHM=1
+      - PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True,max_split_size_mb:512
+    working_dir: /home/user/Documents/tensorrt_yolo26
+    network_mode: "host"
