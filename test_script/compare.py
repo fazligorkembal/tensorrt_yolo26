@@ -11,6 +11,9 @@ with open(file_engine, "r") as f:
 numpy_onnx = np.array([float(x.strip()) for x in onnx_output])
 numpy_engine = np.array([float(x.strip()) for x in engine_output])
 
+print(f"Onnx Length: {len(numpy_onnx)}")
+print(f"Engine Length: {len(numpy_engine)}")
+
 difference = np.abs(numpy_onnx - numpy_engine)
 max_difference = np.max(difference)
 mean_difference = np.mean(difference)
@@ -19,8 +22,7 @@ min_difference = np.min(difference)
 threshold = 1
 diff_bigger_than_threshold = difference[difference > threshold]
 
-print(f"Onnx Length: {len(numpy_onnx)}")
-print(f"Engine Length: {len(numpy_engine)}")
+
 print(
     f"Number of differences greater than {threshold}: {len(diff_bigger_than_threshold)}"
 )

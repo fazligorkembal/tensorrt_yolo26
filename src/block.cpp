@@ -91,7 +91,7 @@ nvinfer1::IElementWiseLayer* convBnSiLU(nvinfer1::INetworkDefinition* network,
     conv->setNbGroups(g);
     conv->setName((lname + "/conv/Conv").c_str());
 
-    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-5);
+    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-3);
 
     nvinfer1::IActivationLayer* sigmoid = network->addActivation(*bn->getOutput(0), nvinfer1::ActivationType::kSIGMOID);
     sigmoid->setName((lname + "/act/Sigmoid").c_str());
@@ -99,6 +99,26 @@ nvinfer1::IElementWiseLayer* convBnSiLU(nvinfer1::INetworkDefinition* network,
             network->addElementWise(*bn->getOutput(0), *sigmoid->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
     assert(ew);
     ew->setName((lname + "/act/Mul").c_str());
+
+    nvinfer1::Weights kernelWeights = conv->getKernelWeights();
+    nvinfer1::Dims kernelSize = conv->getKernelSizeNd();
+    int outCh = conv->getNbOutputMaps();
+    int groups = conv->getNbGroups();
+
+    // Input tensor'dan input channel al
+    nvinfer1::Dims inputDims = input.getDimensions();
+    int inCh = inputDims.d[1];  // NCHW format
+
+    std::cout << "Layer: " << lname << std::endl;
+    std::cout << "  Kernel weights count: " << kernelWeights.count << std::endl;
+    std::cout << "  Input channels: " << inCh << std::endl;
+    std::cout << "  Output channels: " << outCh << std::endl;
+    std::cout << "  Groups: " << groups << std::endl;
+    std::cout << "  Kernel size: " << kernelSize.d[0] << "x" << kernelSize.d[1] << std::endl;
+    std::cout << "  Expected shape: [" << outCh << ", " << (inCh / groups) << ", " << kernelSize.d[0] << ", "
+              << kernelSize.d[1] << "]" << std::endl;
+    std::cout << "  Expected count: " << (outCh * (inCh / groups) * kernelSize.d[0] * kernelSize.d[1]) << std::endl;
+
     return ew;
 }
 
@@ -116,7 +136,7 @@ nvinfer1::ILayer* conv(nvinfer1::INetworkDefinition* network, std::map<std::stri
     conv->setPaddingNd(nvinfer1::DimsHW{p0, p1});
     conv->setNbGroups(g);
     conv->setName((lname + "/conv/Conv").c_str());
-    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-5);
+    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-3);
 
     if (!act)
         return bn;
@@ -133,11 +153,11 @@ nvinfer1::ILayer* conv(nvinfer1::INetworkDefinition* network, std::map<std::stri
 static nvinfer1::ILayer* bottleneck(nvinfer1::INetworkDefinition* network,
                                     std::map<std::string, nvinfer1::Weights> weightMap, nvinfer1::ITensor& input,
                                     int c1, int c2, bool shortcut, std::vector<int> k1, std::vector<int> k2, float e,
-                                    std::string lname) {
+                                    std::string lname, int g = 1) {
     int c_ = (int)((float)c2 * e);
     nvinfer1::IElementWiseLayer* conv1 = convBnSiLU(network, weightMap, input, c_, k1, 1, lname + ".cv1");
     nvinfer1::IElementWiseLayer* conv2 =
-            convBnSiLU(network, weightMap, *conv1->getOutput(0), c2, k2, 1, lname + ".cv2");
+            convBnSiLU(network, weightMap, *conv1->getOutput(0), c2, k2, 1, lname + ".cv2", g);
 
     if (shortcut && c1 == c2) {
         nvinfer1::IElementWiseLayer* ew =
@@ -160,7 +180,7 @@ static nvinfer1::ILayer* convBn(nvinfer1::INetworkDefinition* network,
     conv->setPaddingNd(nvinfer1::DimsHW{p, p});
     conv->setNbGroups(g);
 
-    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-5);
+    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-3);
     return bn;
 }
 
@@ -293,11 +313,12 @@ nvinfer1::IElementWiseLayer* C3K2(nvinfer1::INetworkDefinition* network,
     nvinfer1::ITensor* y1 = split2->getOutput(0);
     for (int i = 0; i < n; i++) {
         nvinfer1::ILayer* b = nullptr;
-        if (attn)  // Pseudo
-        {
-            std::cout << "C3K2->bottleneck lname=" << lname + ".m." + std::to_string(i) << std::endl;
-            std::cout << "ATTN NOT IMPLEMENTED YET" << std::endl;
-            return nullptr;
+        if (attn) {
+            b = bottleneck(network, weightMap, *y1, c_, c_, shortcut, {3, 3}, {3, 3}, 0.5,
+                           lname + ".m." + std::to_string(i) + ".0");
+
+            b = PSABlock(network, weightMap, *b->getOutput(0), c_, 0.5, max(1, c_ / 64), shortcut,
+                         lname + ".m." + std::to_string(i) + ".1");
 
         } else if (c3k) {
             b = C3k(network, weightMap, *y1, c_, c_, 2, shortcut, {3, 3}, {3, 3}, 0.5,
@@ -401,7 +422,7 @@ nvinfer1::ILayer* DWConv(nvinfer1::INetworkDefinition* network, std::map<std::st
     int p1 = k[1] / 2;
     conv->setPaddingNd(nvinfer1::DimsHW{p0, p1});
 
-    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-5);
+    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-3);
 
     nvinfer1::IActivationLayer* sigmoid = network->addActivation(*bn->getOutput(0), nvinfer1::ActivationType::kSIGMOID);
     nvinfer1::IElementWiseLayer* ew =
