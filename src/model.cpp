@@ -319,8 +319,60 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
                                               reshape23_one2one_cv3_2->getOutput(0)};
     nvinfer1::IConcatenationLayer* concatFinal = network->addConcatenation(inputTensorsFinal, 3);
     concatFinal->setAxis(2);
-    concatFinal->getOutput(0)->setName(kOutputTensorName);
-    network->markOutput(*concatFinal->getOutput(0));
+    /////////////////////////////////////////////////////
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_0_0 =
+            convBnSiLU(network, weightMap, *conv16->getOutput(0), c2 / 4, {3, 3}, 1,
+                       "model.23.one2one_cv2.0.0", 1);
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_0_1 =
+            convBnSiLU(network, weightMap, *conv23_one2one_cv2_0_0->getOutput(0), c2 / 4, {3, 3}, 1,
+                       "model.23.one2one_cv2.0.1", 1);
+    nvinfer1::IConvolutionLayer* conv23_one2one_cv2_0_2 = network->addConvolutionNd(
+            *conv23_one2one_cv2_0_1->getOutput(0), 4, nvinfer1::DimsHW{1, 1},
+            weightMap["model.23.one2one_cv2.0.2.weight"], weightMap["model.23.one2one_cv2.0.2.bias"]);
+    conv23_one2one_cv2_0_2->setStrideNd(nvinfer1::DimsHW{1, 1});
+    conv23_one2one_cv2_0_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
+    conv23_one2one_cv2_0_2->setNbGroups(1);
+    nvinfer1::IShuffleLayer* reshape23_one2one_cv2_0 = network->addShuffle(*conv23_one2one_cv2_0_2->getOutput(0));
+    reshape23_one2one_cv2_0->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    /////////////////////////////////////////////////////
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_1_0 =
+            convBnSiLU(network, weightMap, *conv19->getOutput(0), c2 / 4, {3, 3}, 1, "model.23.one2one_cv2.1.0", 1);
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_1_1 =
+            convBnSiLU(network, weightMap, *conv23_one2one_cv2_1_0->getOutput(0), c2 / 4, {3, 3}, 1,
+                       "model.23.one2one_cv2.1.1", 1);
+    nvinfer1::IConvolutionLayer* conv23_one2one_cv2_1_2 = network->addConvolutionNd(
+            *conv23_one2one_cv2_1_1->getOutput(0), 4, nvinfer1::DimsHW{1, 1},
+            weightMap["model.23.one2one_cv2.1.2.weight"], weightMap["model.23.one2one_cv2.1.2.bias"]);
+    conv23_one2one_cv2_1_2->setStrideNd(nvinfer1::DimsHW{1, 1});
+    conv23_one2one_cv2_1_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
+    conv23_one2one_cv2_1_2->setNbGroups(1);
+    nvinfer1::IShuffleLayer* reshape23_one2one_cv2_1 = network->addShuffle(*conv23_one2one_cv2_1_2->getOutput(0));
+    reshape23_one2one_cv2_1->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    /////////////////////////////////////////////////////
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_2_0 =
+            convBnSiLU(network, weightMap, *conv22->getOutput(0), c2 / 4, {3, 3}, 1, "model.23.one2one_cv2.2.0", 1);
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv2_2_1 =
+            convBnSiLU(network, weightMap, *conv23_one2one_cv2_2_0->getOutput(0), c2 / 4, {3, 3}, 1,
+                       "model.23.one2one_cv2.2.1", 1);
+    nvinfer1::IConvolutionLayer* conv23_one2one_cv2_2_2 = network->addConvolutionNd(
+            *conv23_one2one_cv2_2_1->getOutput(0), 4, nvinfer1::DimsHW{1, 1},
+            weightMap["model.23.one2one_cv2.2.2.weight"], weightMap["model.23.one2one_cv2.2.2.bias"]);
+    conv23_one2one_cv2_2_2->setStrideNd(nvinfer1::DimsHW{1, 1});
+    conv23_one2one_cv2_2_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
+    conv23_one2one_cv2_2_2->setNbGroups(1);
+    nvinfer1::IShuffleLayer* reshape23_one2one_cv2_2 = network->addShuffle(*conv23_one2one_cv2_2_2->getOutput(0));
+    reshape23_one2one_cv2_2->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    /////////////////////////////////////////////////////
+    nvinfer1::ITensor* inputTensorsFinal2[] = {reshape23_one2one_cv2_0->getOutput(0),
+                                               reshape23_one2one_cv2_1->getOutput(0),
+                                               reshape23_one2one_cv2_2->getOutput(0)};
+    nvinfer1::IConcatenationLayer* concatFinal2 = network->addConcatenation(inputTensorsFinal2, 3);
+    concatFinal2->setAxis(2);
+    /////////////////////////////////////////////////////
+
+
+    concatFinal2->getOutput(0)->setName(kOutputTensorName);
+    network->markOutput(*concatFinal2->getOutput(0));
     config->setMaxWorkspaceSize(1 << 30);
     // config->setFlag(nvinfer1::BuilderFlag::kFP16); // TODO: make this configurable with config file
     // modelInfo(network);  // TODO: remove this after debugging

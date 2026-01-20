@@ -297,3 +297,69 @@ yolo26n - ultralytics 8.4.4
         Min difference between ONNX and Engine outputs: 9.999999974752427e-07
         ONNX MEAN: -20.143403719772323
         ENGINE MEAN: -20.16942868328214
+
+    /model.23/one2one_cv2.0/one2one_cv2.0.0/act/Mul_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 1023
+        Percentage of differences greater than 1: 0.999023%
+        Max difference between ONNX and Engine outputs: 5.918826
+        Mean difference between ONNX and Engine outputs: 0.10676011090015841
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 3.0052116024511717
+        ENGINE MEAN: 3.0094817850819213
+
+    /model.23/one2one_cv2.0/one2one_cv2.0.1/act/Mul_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 46
+        Percentage of differences greater than 1: 0.044922%
+        Max difference between ONNX and Engine outputs: 2.4669879999999997
+        Mean difference between ONNX and Engine outputs: 0.03142485297678213
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.42872531335937497
+        ENGINE MEAN: 0.43023148939153044
+
+    /model.23/Reshape_output_0
+        Onnx Length: 25600
+        Engine Length: 25600
+        Number of differences greater than 1: 92
+        Percentage of differences greater than 1: 0.359375%
+        Max difference between ONNX and Engine outputs: 2.7615790000000002
+        Mean difference between ONNX and Engine outputs: 0.07740351524101562
+        Min difference between ONNX and Engine outputs: 1.0000000000287557e-06
+        ONNX MEAN: 2.3362523629687497
+        ENGINE MEAN: 2.345755805688281
+
+    /model.23/Reshape_1_output_0
+        Onnx Length: 6400
+        Engine Length: 6400
+        Number of differences greater than 1: 25
+        Percentage of differences greater than 1: 0.390625%
+        Max difference between ONNX and Engine outputs: 3.2375629999999997
+        Mean difference between ONNX and Engine outputs: 0.06426816482734374
+        Min difference between ONNX and Engine outputs: 9.999999999732445e-07
+        ONNX MEAN: 3.13270944890625
+        ENGINE MEAN: 3.1333616498914063
+
+    /model.23/Reshape_2_output_0
+        Onnx Length: 1600
+        Engine Length: 1600
+        Number of differences greater than 1: 8
+        Percentage of differences greater than 1: 0.500000%
+        Max difference between ONNX and Engine outputs: 2.5055119999999995
+        Mean difference between ONNX and Engine outputs: 0.06449322512500001
+        Min difference between ONNX and Engine outputs: 1.2000000000345068e-05
+        ONNX MEAN: 4.2692987175
+        ENGINE MEAN: 4.272622842375
+
+    /model.23/Concat_output_0
+        Onnx Length: 33600
+        Engine Length: 33600
+        Number of differences greater than 1: 124
+        Percentage of differences greater than 1: 0.369048%
+        Max difference between ONNX and Engine outputs: 3.2319729999999995
+        Mean difference between ONNX and Engine outputs: 0.07429672225333332
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 2.5800083009821435
+        ENGINE MEAN: 2.5877319591429164
