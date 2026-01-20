@@ -26,8 +26,6 @@ RUN apt-get install libgtk* libspdlog-dev libfmt-dev libboost-dev ffmpeg libavfo
     libglib2.0-0 libdbus-1-3 -y && rm -rf /var/lib/apt/lists/* 
 
 
-RUN pip3 install torch torchvision --upgrade --force-reinstall
-
 RUN apt-get update && apt-get upgrade -y
-RUN pip3 install onnxslim onnxruntime-gpu matplotlib tqdm requests psutil PyQt5
+RUN pip3 install onnxslim onnxruntime matplotlib tqdm requests psutil PyQt5
 RUN pip3 install "numpy<2"

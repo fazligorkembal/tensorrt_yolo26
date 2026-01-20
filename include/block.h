@@ -22,7 +22,7 @@ nvinfer1::IElementWiseLayer* C3K2(nvinfer1::INetworkDefinition* network,
 
 nvinfer1::IElementWiseLayer* SPPF(nvinfer1::INetworkDefinition* network,
                                   std::map<std::string, nvinfer1::Weights> weightMap, nvinfer1::ITensor& input, int c1,
-                                  int c2, int k, std::string lname);
+                                  int c2, int k, bool shortcut, std::string lname);
 
 nvinfer1::IElementWiseLayer* C2PSA(nvinfer1::INetworkDefinition* network,
                                    std::map<std::string, nvinfer1::Weights>& weightMap, nvinfer1::ITensor& input,
@@ -30,3 +30,7 @@ nvinfer1::IElementWiseLayer* C2PSA(nvinfer1::INetworkDefinition* network,
 
 nvinfer1::ILayer* DWConv(nvinfer1::INetworkDefinition* network, std::map<std::string, nvinfer1::Weights> weightMap,
                          nvinfer1::ITensor& input, int ch, std::vector<int> k, int s, std::string lname);
+
+nvinfer1::ILayer* conv(nvinfer1::INetworkDefinition* network, std::map<std::string, nvinfer1::Weights> weightMap,
+                       nvinfer1::ITensor& input, int ch, std::vector<int> k, int s, std::string lname, int g = 1,
+                       bool act = true);

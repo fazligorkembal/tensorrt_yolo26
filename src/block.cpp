@@ -102,6 +102,34 @@ nvinfer1::IElementWiseLayer* convBnSiLU(nvinfer1::INetworkDefinition* network,
     return ew;
 }
 
+nvinfer1::ILayer* conv(nvinfer1::INetworkDefinition* network, std::map<std::string, nvinfer1::Weights> weightMap,
+                       nvinfer1::ITensor& input, int ch, std::vector<int> k, int s, std::string lname, int g,
+                       bool act) {
+    nvinfer1::Weights bias_empty{nvinfer1::DataType::kFLOAT, nullptr, 0};
+    nvinfer1::IConvolutionLayer* conv = network->addConvolutionNd(input, ch, nvinfer1::DimsHW{k[0], k[1]},
+                                                                  weightMap[lname + ".conv.weight"], bias_empty);
+    assert(conv);
+    conv->setStrideNd(nvinfer1::DimsHW{s, s});
+    // auto pad
+    int p0 = k[0] / 2;
+    int p1 = k[1] / 2;
+    conv->setPaddingNd(nvinfer1::DimsHW{p0, p1});
+    conv->setNbGroups(g);
+    conv->setName((lname + "/conv/Conv").c_str());
+    nvinfer1::IScaleLayer* bn = addBatchNorm2d(network, weightMap, *conv->getOutput(0), lname + ".bn", 1e-5);
+
+    if (!act)
+        return bn;
+
+    nvinfer1::IActivationLayer* sigmoid = network->addActivation(*bn->getOutput(0), nvinfer1::ActivationType::kSIGMOID);
+    sigmoid->setName((lname + "/act/Sigmoid").c_str());
+    nvinfer1::IElementWiseLayer* ew =
+            network->addElementWise(*bn->getOutput(0), *sigmoid->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
+    assert(ew);
+    ew->setName((lname + "/act/Mul").c_str());
+    return ew;
+}
+
 static nvinfer1::ILayer* bottleneck(nvinfer1::INetworkDefinition* network,
                                     std::map<std::string, nvinfer1::Weights> weightMap, nvinfer1::ITensor& input,
                                     int c1, int c2, bool shortcut, std::vector<int> k1, std::vector<int> k2, float e,
@@ -267,11 +295,9 @@ nvinfer1::IElementWiseLayer* C3K2(nvinfer1::INetworkDefinition* network,
         nvinfer1::ILayer* b = nullptr;
         if (attn)  // Pseudo
         {
-            b = bottleneck(network, weightMap, *y1, c_, c_, shortcut, {3, 3}, {3, 3}, 0.5,
-                           lname + ".m." + std::to_string(i) + ".0");
-
-            b = PSABlock(network, weightMap, *b->getOutput(0), c_, 0.5, max(1, c_ / 64), shortcut,
-                         lname + ".m." + std::to_string(i) + ".1");
+            std::cout << "C3K2->bottleneck lname=" << lname + ".m." + std::to_string(i) << std::endl;
+            std::cout << "ATTN NOT IMPLEMENTED YET" << std::endl;
+            return nullptr;
 
         } else if (c3k) {
             b = C3k(network, weightMap, *y1, c_, c_, 2, shortcut, {3, 3}, {3, 3}, 0.5,
@@ -295,9 +321,9 @@ nvinfer1::IElementWiseLayer* C3K2(nvinfer1::INetworkDefinition* network,
 
 nvinfer1::IElementWiseLayer* SPPF(nvinfer1::INetworkDefinition* network,
                                   std::map<std::string, nvinfer1::Weights> weightMap, nvinfer1::ITensor& input, int c1,
-                                  int c2, int k, std::string lname) {
+                                  int c2, int k, bool shortcut, std::string lname) {
     int c_ = c1 / 2;
-    nvinfer1::IElementWiseLayer* conv1 = convBnSiLU(network, weightMap, input, c_, {1, 1}, 1, lname + ".cv1");
+    nvinfer1::ILayer* conv1 = conv(network, weightMap, input, c_, {1, 1}, 1, lname + ".cv1", 1, false);
     nvinfer1::IPoolingLayer* pool1 =
             network->addPoolingNd(*conv1->getOutput(0), nvinfer1::PoolingType::kMAX, nvinfer1::DimsHW{k, k});
     pool1->setStrideNd(nvinfer1::DimsHW{1, 1});
@@ -316,7 +342,7 @@ nvinfer1::IElementWiseLayer* SPPF(nvinfer1::INetworkDefinition* network,
     nvinfer1::IElementWiseLayer* conv2 =
             convBnSiLU(network, weightMap, *cat->getOutput(0), c2, {1, 1}, 1, lname + ".cv2");
 
-    if (c1 == c2) {
+    if (shortcut && (c1 == c2)) {
         nvinfer1::IElementWiseLayer* sum =
                 network->addElementWise(input, *conv2->getOutput(0), nvinfer1::ElementWiseOperation::kSUM);
         return sum;

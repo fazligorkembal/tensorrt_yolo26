@@ -16,12 +16,17 @@ max_difference = np.max(difference)
 mean_difference = np.mean(difference)
 min_difference = np.min(difference)
 
+threshold = 1
+diff_bigger_than_threshold = difference[difference > threshold]
 
-for i in range(1000):
-    print(
-        f"Index {i}: ONNX = {numpy_onnx[i]}, Engine = {numpy_engine[i]}, Difference = {difference[i]}"
-    )
-
+print(f"Onnx Length: {len(numpy_onnx)}")
+print(f"Engine Length: {len(numpy_engine)}")
+print(
+    f"Number of differences greater than {threshold}: {len(diff_bigger_than_threshold)}"
+)
+print(
+    f"Percentage of differences greater than {threshold}: {len(diff_bigger_than_threshold) / len(numpy_onnx) * 100:.6f}%"
+)
 print(f"Max difference between ONNX and Engine outputs: {max_difference}")
 print(f"Mean difference between ONNX and Engine outputs: {mean_difference}")
 print(f"Min difference between ONNX and Engine outputs: {min_difference}")

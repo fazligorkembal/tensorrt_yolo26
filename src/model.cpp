@@ -186,136 +186,19 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     nvinfer1::IElementWiseLayer* conv9 =
             SPPF(network, weightMap, *conv8->getOutput(0), get_width(1024, gw, max_channels),
-                 get_width(1024, gw, max_channels), 5, "model.9");
+                 get_width(1024, gw, max_channels), 5, true, "model.9");
 
     nvinfer1::IElementWiseLayer* conv10 =
             C2PSA(network, weightMap, *conv9->getOutput(0), get_width(1024, gw, max_channels),
                   get_width(1024, gw, max_channels), get_depth(2, gd), 0.5, "model.10");
-
-    /*******************************************************************************************************
-    *********************************************  YOLO26 HEAD  ********************************************
-    *******************************************************************************************************/
-
-    float scale[] = {1.0, 1.0, 2.0, 2.0};
-    nvinfer1::IResizeLayer* upsample11 = network->addResize(*conv10->getOutput(0));
-    assert(upsample11);
-
-    upsample11->setResizeMode(nvinfer1::ResizeMode::kNEAREST);
-    upsample11->setScales(scale, 4);
-
-    nvinfer1::ITensor* inputTensors12[] = {upsample11->getOutput(0), conv6->getOutput(0)};
-    nvinfer1::IConcatenationLayer* cat12 = network->addConcatenation(inputTensors12, 2);
-
-    nvinfer1::IElementWiseLayer* conv13 =
-            C3K2(network, weightMap, *cat12->getOutput(0), get_width(1024, gw, max_channels),
-                 get_width(512, gw, max_channels), get_depth(2, gd), true, true, false, 0.5, "model.13");
-
-    nvinfer1::IResizeLayer* upsample14 = network->addResize(*conv13->getOutput(0));
-    assert(upsample14);
-
-    upsample14->setResizeMode(nvinfer1::ResizeMode::kNEAREST);
-    upsample14->setScales(scale, 4);
-
-    nvinfer1::ITensor* inputTensors15[] = {upsample14->getOutput(0), conv4->getOutput(0)};
-    nvinfer1::IConcatenationLayer* cat15 = network->addConcatenation(inputTensors15, 2);
-
-    nvinfer1::IElementWiseLayer* conv16 =
-            C3K2(network, weightMap, *cat15->getOutput(0), get_width(512, gw, max_channels),
-                 get_width(256, gw, max_channels), get_depth(2, gd), true, true, false, 0.5, "model.16");
-
-    nvinfer1::IElementWiseLayer* conv17 = convBnSiLU(network, weightMap, *conv16->getOutput(0),
-                                                     get_width(256, gw, max_channels), {3, 3}, 2, "model.17");
-
-    nvinfer1::ITensor* inputTensors18[] = {conv17->getOutput(0), conv13->getOutput(0)};
-    nvinfer1::IConcatenationLayer* cat18 = network->addConcatenation(inputTensors18, 2);
-
-    nvinfer1::IElementWiseLayer* conv19 =
-            C3K2(network, weightMap, *cat18->getOutput(0), get_width(512, gw, max_channels),
-                 get_width(512, gw, max_channels), get_depth(2, gd), true, true, false, 0.5, "model.19");
-
-    nvinfer1::IElementWiseLayer* conv20 = convBnSiLU(network, weightMap, *conv19->getOutput(0),
-                                                     get_width(512, gw, max_channels), {3, 3}, 2, "model.20");
-
-    nvinfer1::ITensor* inputTensors21[] = {conv20->getOutput(0), conv10->getOutput(0)};
-    nvinfer1::IConcatenationLayer* cat21 = network->addConcatenation(inputTensors21, 2);
-    nvinfer1::IElementWiseLayer* conv22 =
-            C3K2(network, weightMap, *cat21->getOutput(0), get_width(1024, gw, max_channels),
-                 get_width(1024, gw, max_channels), get_depth(2, gd), true, true, true, 0.5, "model.22");
-
-    /*******************************************************************************************************
-    *********************************************  YOLO26 OUTPUT  ********************************************
-    *******************************************************************************************************/
-
-    int c2 = std::max(std::max(16, get_width(256, gw, max_channels) / 4), 16 * 4);
-    int c3 = std::max(get_width(256, gw, max_channels), std::min(kNumClass, 100));
-
-    /////////////////////////////////////////////////////
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_0_0_0 =
-            convBnSiLU(network, weightMap, *conv16->getOutput(0), c2, {3, 3}, 1, "model.23.one2one_cv3.0.0.0", c2);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_0_0_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_0_0_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.0.0.1", 1);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_0_1_0 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_0_0_1->getOutput(0), c3, {3, 3}, 1,
-                       "model.23.one2one_cv3.0.1.0", c3);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_0_1_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_0_1_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.0.1.1", 1);
-    nvinfer1::IConvolutionLayer* conv23_one2one_cv3_0_2 = network->addConvolutionNd(
-            *conv23_one2one_cv3_0_1_1->getOutput(0), kNumClass, nvinfer1::DimsHW{1, 1},
-            weightMap["model.23.one2one_cv3.0.2.weight"], weightMap["model.23.one2one_cv3.0.2.bias"]);
-    conv23_one2one_cv3_0_2->setStrideNd(nvinfer1::DimsHW{1, 1});
-    conv23_one2one_cv3_0_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
-    nvinfer1::IShuffleLayer* reshape23_one2one_cv3_0 = network->addShuffle(*conv23_one2one_cv3_0_2->getOutput(0));
-    reshape23_one2one_cv3_0->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
-    /////////////////////////////////////////////////////
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_1_0_0 = convBnSiLU(
-            network, weightMap, *conv19->getOutput(0), c2 * 2, {3, 3}, 1, "model.23.one2one_cv3.1.0.0", c2 * 2);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_1_0_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_1_0_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.1.0.1", 1);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_1_1_0 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_1_0_1->getOutput(0), c3, {3, 3}, 1,
-                       "model.23.one2one_cv3.1.1.0", c3);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_1_1_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_1_1_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.1.1.1", 1);
-    nvinfer1::IConvolutionLayer* conv23_one2one_cv3_1_2 = network->addConvolutionNd(
-            *conv23_one2one_cv3_1_1_1->getOutput(0), kNumClass, nvinfer1::DimsHW{1, 1},
-            weightMap["model.23.one2one_cv3.1.2.weight"], weightMap["model.23.one2one_cv3.1.2.bias"]);
-    conv23_one2one_cv3_1_2->setStrideNd(nvinfer1::DimsHW{1, 1});
-    conv23_one2one_cv3_1_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
-    nvinfer1::IShuffleLayer* reshape23_one2one_cv3_1 = network->addShuffle(*conv23_one2one_cv3_1_2->getOutput(0));
-    reshape23_one2one_cv3_1->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
-
     /////////////////////////////////////////////////////
 
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_0 = convBnSiLU(
-            network, weightMap, *conv22->getOutput(0), c2 * 4, {3, 3}, 1, "model.23.one2one_cv3.2.0.0", c2 * 4);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_2_0_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.2.0.1", 1);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_1_0 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_2_0_1->getOutput(0), c3, {3, 3}, 1,
-                       "model.23.one2one_cv3.2.1.0", c3);
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_1_1 =
-            convBnSiLU(network, weightMap, *conv23_one2one_cv3_2_1_0->getOutput(0), c3, {1, 1}, 1,
-                       "model.23.one2one_cv3.2.1.1", 1);
-    nvinfer1::IConvolutionLayer* conv23_one2one_cv3_2_2 = network->addConvolutionNd(
-            *conv23_one2one_cv3_2_1_1->getOutput(0), kNumClass, nvinfer1::DimsHW{1, 1},
-            weightMap["model.23.one2one_cv3.2.2.weight"], weightMap["model.23.one2one_cv3.2.2.bias"]);
-    conv23_one2one_cv3_2_2->setStrideNd(nvinfer1::DimsHW{1, 1});
-    conv23_one2one_cv3_2_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
-    nvinfer1::IShuffleLayer* reshape23_one2one_cv3_2 = network->addShuffle(*conv23_one2one_cv3_2_2->getOutput(0));
-    reshape23_one2one_cv3_2->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
-    /////////////////////////////////////////////////////
-
-    reshape23_one2one_cv3_2->getOutput(0)->setName(kOutputTensorName);
-    network->markOutput(*reshape23_one2one_cv3_2->getOutput(0));
+    conv10->getOutput(0)->setName(kOutputTensorName);
+    network->markOutput(*conv10->getOutput(0));
     config->setMaxWorkspaceSize(1 << 30);
     // config->setFlag(nvinfer1::BuilderFlag::kFP16); // TODO: make this configurable with config file
-    modelInfo(network);                                                 // TODO: remove this after debugging
-    std::cout << "Output channels: " << c2 << ", " << c3 << std::endl;  // TODO: remove after debugging
+    modelInfo(network);  // TODO: remove this after debugging
+    //std::cout << "Output channels: " << c2 << ", " << c3 << std::endl;  // TODO: remove after debugging
 
     std::cout << "Building engine, please wait for a while..." << std::endl;
     nvinfer1::IHostMemory* serialized_model = builder->buildSerializedNetwork(*network, *config);

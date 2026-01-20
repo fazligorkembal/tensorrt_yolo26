@@ -1,0 +1,132 @@
+yolo12n - ultralytics 8.3.119
+    /model.0/act/Mul_output_0
+        Onnx Length: 1638400
+        Engine Length: 1638400
+        Number of differences greater than 1: 83454
+        Percentage of differences greater than 1: 5.093628%
+        Max difference between ONNX and Engine outputs: 72.034556
+        Mean difference between ONNX and Engine outputs: 0.25988132606123854
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 1.528716838081664
+        ENGINE MEAN: 1.615986445194033
+    /model.1/act/Mul_output_0
+        Onnx Length: 819200
+        Engine Length: 819200
+        Number of differences greater than 1: 68459
+        Percentage of differences greater than 1: 8.356812%
+        Max difference between ONNX and Engine outputs: 68.837925
+        Mean difference between ONNX and Engine outputs: 0.3929023286849828
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 1.486728752399902
+        ENGINE MEAN: 1.6097265510544825
+
+yolo26n - ultralytics 8.4.4
+    /model.0/act/Mul_output_0
+        Onnx Length: 1638400
+        Engine Length: 1638400
+        Number of differences greater than 1: 74013
+        Percentage of differences greater than 1: 4.517395%
+        Max difference between ONNX and Engine outputs: 44.602168
+        Mean difference between ONNX and Engine outputs: 0.2047112519627116
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 1.971543722220459
+        ENGINE MEAN: 1.9798173785652176
+    
+    /model.1/act/Mul_output_0
+        Onnx Length: 819200
+        Engine Length: 819200
+        Number of differences greater than 1: 66995
+        Percentage of differences greater than 1: 8.178101%
+        Max difference between ONNX and Engine outputs: 65.41952400000001
+        Mean difference between ONNX and Engine outputs: 0.3781319451029159
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 2.2391547027563465
+        ENGINE MEAN: 2.2524985349542668
+    
+    /model.3/act/Mul_output_0
+        Onnx Length: 409600
+        Engine Length: 409600
+        Number of differences greater than 1: 734
+        Percentage of differences greater than 1: 0.179199%
+        Max difference between ONNX and Engine outputs: 3.106635
+        Mean difference between ONNX and Engine outputs: 0.04651968495374828
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.5790597278149415
+        ENGINE MEAN: 0.5796865156238142
+
+    /model.4/cv2/act/Mul_output_0
+        Onnx Length: 819200
+        Engine Length: 819200
+        Number of differences greater than 1: 79
+        Percentage of differences greater than 1: 0.009644%
+        Max difference between ONNX and Engine outputs: 1.945817
+        Mean difference between ONNX and Engine outputs: 0.0203613993996061
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: -0.1123009828198242
+        ENGINE MEAN: -0.11121709126954439
+
+    /model.5/act/Mul_output_0
+        Onnx Length: 204800
+        Engine Length: 204800
+        Number of differences greater than 1: 15
+        Percentage of differences greater than 1: 0.007324%
+        Max difference between ONNX and Engine outputs: 1.5251379999999999
+        Mean difference between ONNX and Engine outputs: 0.02900206986259516
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.37087441755371103
+        ENGINE MEAN: 0.3723528271952534
+
+    /model.6/cv2/act/Mul_output_0
+        Onnx Length: 204800
+        Engine Length: 204800
+        Number of differences greater than 1: 9
+        Percentage of differences greater than 1: 0.004395%
+        Max difference between ONNX and Engine outputs: 1.575106
+        Mean difference between ONNX and Engine outputs: 0.020766834371497855
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: -0.01870410568359375
+        ENGINE MEAN: -0.017841368654411917
+
+    /model.7/act/Mul_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 1
+        Percentage of differences greater than 1: 0.000977%
+        Max difference between ONNX and Engine outputs: 1.0081870000000004
+        Mean difference between ONNX and Engine outputs: 0.02239931643289678
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.13129788644531248
+        ENGINE MEAN: 0.13338926184409206
+
+    /model.8/cv2/act/Mul_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 0
+        Percentage of differences greater than 1: 0.000000%
+        Max difference between ONNX and Engine outputs: 0.797783
+        Mean difference between ONNX and Engine outputs: 0.021069648512656153
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.13665572455078126
+        ENGINE MEAN: 0.13873666327428527
+
+    /model.9/Add_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 0
+        Percentage of differences greater than 1: 0.000000%
+        Max difference between ONNX and Engine outputs: 0.836206
+        Mean difference between ONNX and Engine outputs: 0.030230307944285648
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: 0.03183475818359375
+        ENGINE MEAN: 0.03366998657848681
+
+    /model.10/cv2/act/Mul_output_0
+        Onnx Length: 102400
+        Engine Length: 102400
+        Number of differences greater than 1: 0
+        Percentage of differences greater than 1: 0.000000%
+        Max difference between ONNX and Engine outputs: 0.8434040000000002
+        Mean difference between ONNX and Engine outputs: 0.021314804506105473
+        Min difference between ONNX and Engine outputs: 0.0
+        ONNX MEAN: -0.028756130615234375
+        ENGINE MEAN: -0.02273920913748633
