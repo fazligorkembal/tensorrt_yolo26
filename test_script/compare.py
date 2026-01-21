@@ -19,7 +19,7 @@ max_difference = np.max(difference)
 mean_difference = np.mean(difference)
 min_difference = np.min(difference)
 
-threshold = 1
+threshold = 500
 diff_bigger_than_threshold = difference[difference > threshold]
 
 

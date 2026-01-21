@@ -363,3 +363,31 @@ yolo26n - ultralytics 8.4.4
         Min difference between ONNX and Engine outputs: 0.0
         ONNX MEAN: 2.5800083009821435
         ENGINE MEAN: 2.5877319591429164
+
+    /model.23/Add_1_output_0
+        Onnx Length: 16800
+        Engine Length: 16800
+        Number of differences greater than 1: 68
+        Percentage of differences greater than 1: 0.404762%
+        Max difference between ONNX and Engine outputs: 2.559585000000002
+        Mean difference between ONNX and Engine outputs: 0.07369475142857145
+        Min difference between ONNX and Engine outputs: 1.00000000458067e-06
+        ONNX MEAN: 37.2848812685119
+        ENGINE MEAN: 37.292087608154766
+
+
+    /model.23/Mul_2_output_0
+        Onnx Length: 33600
+        Engine Length: 33600
+        Number of differences greater than 1: 6149
+        Percentage of differences greater than 1: 18.300595%
+        Max difference between ONNX and Engine outputs: 79.30486199999996
+        Mean difference between ONNX and Engine outputs: 0.7652271275883336
+        Min difference between ONNX and Engine outputs: 2.000000000002e-06
+        ONNX MEAN: 319.9909304470238
+        ENGINE MEAN: 319.97123036171826
+
+    
+    /model.23/Sigmoid_output_0
+
+    

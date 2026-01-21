@@ -319,10 +319,13 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
                                               reshape23_one2one_cv3_2->getOutput(0)};
     nvinfer1::IConcatenationLayer* concatFinal = network->addConcatenation(inputTensorsFinal, 3);
     concatFinal->setAxis(2);
+    nvinfer1::IActivationLayer* concatFinalSigmoid = network->addActivation(
+            *concatFinal->getOutput(0),
+            nvinfer1::ActivationType::kSIGMOID);  // TODO: THIS IS UNNESSARY, REMOVE AFTER PLUGIN IS READY
+
     /////////////////////////////////////////////////////
     nvinfer1::IElementWiseLayer* conv23_one2one_cv2_0_0 =
-            convBnSiLU(network, weightMap, *conv16->getOutput(0), c2 / 4, {3, 3}, 1,
-                       "model.23.one2one_cv2.0.0", 1);
+            convBnSiLU(network, weightMap, *conv16->getOutput(0), c2 / 4, {3, 3}, 1, "model.23.one2one_cv2.0.0", 1);
     nvinfer1::IElementWiseLayer* conv23_one2one_cv2_0_1 =
             convBnSiLU(network, weightMap, *conv23_one2one_cv2_0_0->getOutput(0), c2 / 4, {3, 3}, 1,
                        "model.23.one2one_cv2.0.1", 1);
@@ -369,10 +372,89 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     nvinfer1::IConcatenationLayer* concatFinal2 = network->addConcatenation(inputTensorsFinal2, 3);
     concatFinal2->setAxis(2);
     /////////////////////////////////////////////////////
+    //     auto q = network->addSlice(*shuffle->getOutput(0), nvinfer1::Dims4{0, 0, 0, 0},
+    //                                nvinfer1::Dims4{d1.d[0], d1.d[1], key_dim, d1.d[3]}, nvinfer1::Dims4{1, 1, 1, 1});
 
+    nvinfer1::ISliceLayer* conv23_concatFinal2_slice1 =
+            network->addSlice(*concatFinal2->getOutput(0), nvinfer1::Dims3{0, 0, 0},
+                              nvinfer1::Dims3{concatFinal2->getOutput(0)->getDimensions().d[0],
+                                              concatFinal2->getOutput(0)->getDimensions().d[1] / 2,
+                                              concatFinal2->getOutput(0)->getDimensions().d[2]},
+                              nvinfer1::Dims3{1, 1, 1});
+    nvinfer1::ISliceLayer* conv23_concatFinal2_slice2 = network->addSlice(
+            *concatFinal2->getOutput(0), nvinfer1::Dims3{0, concatFinal2->getOutput(0)->getDimensions().d[1] / 2, 0},
+            nvinfer1::Dims3{concatFinal2->getOutput(0)->getDimensions().d[0],
+                            concatFinal2->getOutput(0)->getDimensions().d[1] / 2,
+                            concatFinal2->getOutput(0)->getDimensions().d[2]},
+            nvinfer1::Dims3{1, 1, 1});
 
-    concatFinal2->getOutput(0)->setName(kOutputTensorName);
-    network->markOutput(*concatFinal2->getOutput(0));
+    const int anchor_num = concatFinal2->getOutput(0)->getDimensions().d[2];
+    std::vector<int> strides = {8, 16, 32};    // TODO: CHECK THIS FOR OTHER MODELS
+    std::vector<int> fm_sizes = {80, 40, 20};  // TODO: CHECK THIS FOR OTHER MODELS
+    std::vector<float> grid(anchor_num * 2);
+    std::vector<float> stride_vec(anchor_num);
+    std::fill(stride_vec.begin(), stride_vec.begin() + fm_sizes[0] * fm_sizes[0], strides[0]);
+    std::fill(stride_vec.begin() + fm_sizes[0] * fm_sizes[0],
+              stride_vec.begin() + fm_sizes[0] * fm_sizes[0] + fm_sizes[1] * fm_sizes[1], strides[1]);
+    std::fill(stride_vec.begin() + fm_sizes[0] * fm_sizes[0] + fm_sizes[1] * fm_sizes[1], stride_vec.end(), strides[2]);
+
+    int idx = 0;
+    for (int s = 0; s < fm_sizes.size(); ++s) {
+        int h = fm_sizes[s];
+        int w = fm_sizes[s];
+
+        for (int y = 0; y < h; ++y) {
+            for (int x = 0; x < w; ++x) {
+                grid[idx] = x + 0.5f;
+                grid[idx + anchor_num] = y + 0.5f;
+
+                idx++;
+            }
+        }
+    }
+
+    nvinfer1::Dims gridDims;
+    gridDims.nbDims = 3;
+    gridDims.d[0] = 1;
+    gridDims.d[1] = 2;
+    gridDims.d[2] = anchor_num;
+
+    nvinfer1::IConstantLayer* gridLayer = network->addConstant(
+            gridDims, nvinfer1::Weights{nvinfer1::DataType::kFLOAT, grid.data(), (int64_t)grid.size()});
+
+    nvinfer1::IElementWiseLayer* conv23_add_1 = network->addElementWise(
+            *gridLayer->getOutput(0), *conv23_concatFinal2_slice2->getOutput(0), nvinfer1::ElementWiseOperation::kSUM);
+
+    nvinfer1::IElementWiseLayer* conv23_sub_1 = network->addElementWise(
+            *gridLayer->getOutput(0), *conv23_concatFinal2_slice1->getOutput(0), nvinfer1::ElementWiseOperation::kSUB);
+
+    nvinfer1::ITensor* iTensor_conv_2[] = {conv23_sub_1->getOutput(0), conv23_add_1->getOutput(0)};
+    nvinfer1::IConcatenationLayer* conv23_concat_2 = network->addConcatenation(iTensor_conv_2, 2);
+    conv23_concat_2->setAxis(1);
+
+    nvinfer1::IConstantLayer* strideLayer = network->addConstant(
+            nvinfer1::Dims3{1, 1, anchor_num},
+            nvinfer1::Weights{nvinfer1::DataType::kFLOAT, stride_vec.data(), (int64_t)stride_vec.size()});
+
+    nvinfer1::IElementWiseLayer* conv23_concat_2_scaled = network->addElementWise(
+            *conv23_concat_2->getOutput(0), *strideLayer->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
+
+    ///////////////////////////////////////////////////////////
+    // FINAL
+    nvinfer1::IConcatenationLayer* concatFinalModified = network->addConcatenation(
+            std::array<nvinfer1::ITensor*, 2>{conv23_concat_2_scaled->getOutput(0), concatFinalSigmoid->getOutput(0)}
+                    .data(),
+            2);
+    concatFinalModified->setAxis(1);
+
+    nvinfer1::IShuffleLayer* concatFinalModifiedReshape = network->addShuffle(*concatFinalModified->getOutput(0));
+    // (1, 84, 8400) -> (1, 8400, 84) transpose
+    concatFinalModifiedReshape->setFirstTranspose(nvinfer1::Permutation{0, 2, 1});
+    concatFinalModifiedReshape->setReshapeDimensions(nvinfer1::Dims3{1, anchor_num, kNumClass + 4});
+
+    ///////////////////////////////////////////////////////////
+    concatFinalModifiedReshape->getOutput(0)->setName(kOutputTensorName);
+    network->markOutput(*concatFinalModifiedReshape->getOutput(0));
     config->setMaxWorkspaceSize(1 << 30);
     // config->setFlag(nvinfer1::BuilderFlag::kFP16); // TODO: make this configurable with config file
     // modelInfo(network);  // TODO: remove this after debugging
