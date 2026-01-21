@@ -24,7 +24,7 @@ class API YoloLayerPlugin : public IPluginV2IOExt {
 
     virtual size_t getWorkspaceSize(int maxBatchSize) const TRT_NOEXCEPT override { return 0; }
 
-    virtual int enqueue(int batchSize, const void* const* inputs, void** outputs, void* workspace,
+    virtual int enqueue(int batchSize, const void* const* inputs, void* const* outputs, void* workspace,
                         cudaStream_t stream) TRT_NOEXCEPT override;
 
     virtual size_t getSerializationSize() const TRT_NOEXCEPT override;
@@ -49,7 +49,7 @@ class API YoloLayerPlugin : public IPluginV2IOExt {
     const char* getPluginNamespace() const TRT_NOEXCEPT override;
 
     nvinfer1::DataType getOutputDataType(int32_t index, nvinfer1::DataType const* inputTypes,
-                                         int32_t nbInputs) const TRT_NOEXCEPT;
+                                         int32_t nbInputs) const TRT_NOEXCEPT override;
 
     bool isOutputBroadcastAcrossBatch(int outputIndex, const bool* inputIsBroadcasted,
                                       int nbInputs) const TRT_NOEXCEPT override;
@@ -97,8 +97,18 @@ class API YoloLayerPluginCreator : public IPluginCreator {
     IPluginV2IOExt* deserializePlugin(const char* name, const void* serialData,
                                       size_t serialLength) TRT_NOEXCEPT override;
 
+    void setPluginNamespace(const char* pluginNamespace) TRT_NOEXCEPT override
+    {
+        mNamespace = pluginNamespace;
+    }
+
+    const char* getPluginNamespace() const TRT_NOEXCEPT override
+    {
+        return mNamespace.c_str();
+    }
+
    private:
-    std::string nNamespace;
+    std::string mNamespace;
     static PluginFieldCollection mFC;
     static std::vector<PluginField> mPluginAttributes;
 };

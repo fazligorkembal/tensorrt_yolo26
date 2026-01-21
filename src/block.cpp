@@ -5,7 +5,7 @@
 #include <iostream>
 #include "config.h"
 #include "model.h"
-// #include "yololayer.h"
+#include "yololayer.h"
 
 std::map<std::string, nvinfer1::Weights> loadWeights(const std::string file) {
     std::cout << "Loading weights: " << file << std::endl;
@@ -429,4 +429,58 @@ nvinfer1::ILayer* DWConv(nvinfer1::INetworkDefinition* network, std::map<std::st
             network->addElementWise(*bn->getOutput(0), *sigmoid->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
     assert(ew);
     return ew;
+}
+
+nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network,
+                                       nvinfer1::ITensor& input, const std::vector<int>& strides,
+                                       const std::vector<int>& fm_sizes, int stridesLength,
+                                       bool is_segmentation, bool is_pose, bool is_obb)
+{
+    auto creator = getPluginRegistry()->getPluginCreator("YoloLayer_TRT", "1");
+    const int netinfo_count = 9;
+    const int total_count = netinfo_count + stridesLength;
+    int input_width = kInputW;
+    int input_height = kInputH;
+
+    int class_num = kNumClass;
+    if (is_pose) {
+        class_num = kPoseNumClass;
+    }
+
+    if (is_obb) {
+        class_num = kObbNumClass;
+        input_width = kObbInputW;
+        input_height = kObbInputH;
+    }
+
+    std::vector<int> combinedInfo(total_count);
+    combinedInfo[0] = class_num;
+    combinedInfo[1] = kNumberOfPoints;
+    combinedInfo[2] = kConfThreshKeypoints;
+    combinedInfo[3] = input_width;
+    combinedInfo[4] = input_height;
+    combinedInfo[5] = kMaxNumOutputBbox;
+    combinedInfo[6] = is_segmentation;
+    combinedInfo[7] = is_pose;
+    combinedInfo[8] = is_obb;
+
+    // Copy strides to combinedInfo
+    std::copy(strides.begin(), strides.end(), combinedInfo.begin() + netinfo_count);
+
+    nvinfer1::PluginField pluginField;
+    pluginField.name = "combinedInfo";
+    pluginField.data = combinedInfo.data();
+    pluginField.type = nvinfer1::PluginFieldType::kINT32;
+    pluginField.length = combinedInfo.size();
+
+    nvinfer1::PluginFieldCollection pluginFieldCollection;
+    pluginFieldCollection.nbFields = 1;
+    pluginFieldCollection.fields = &pluginField;
+
+    nvinfer1::IPluginV2* pluginObject = creator->createPlugin("yololayer", &pluginFieldCollection);
+
+    // Use the single input tensor instead of multiple detection heads
+    nvinfer1::ITensor* inputTensors[] = {&input};
+    nvinfer1::IPluginV2Layer* yololayer = network->addPluginV2(inputTensors, 1, *pluginObject);
+    return yololayer;
 }

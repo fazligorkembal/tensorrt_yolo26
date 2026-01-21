@@ -453,9 +453,18 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     concatFinalModifiedReshape->setReshapeDimensions(nvinfer1::Dims3{1, anchor_num, kNumClass + 4});
 
     ///////////////////////////////////////////////////////////
-    concatFinalModifiedReshape->getOutput(0)->setName(kOutputTensorName);
-    network->markOutput(*concatFinalModifiedReshape->getOutput(0));
-    config->setMaxWorkspaceSize(1 << 30);
+    int stridesLength = strides.size();
+    nvinfer1::IPluginV2Layer* yolo = addYoloLayer(
+            network, *concatFinalModifiedReshape->getOutput(0), strides, fm_sizes, stridesLength, false, false, false);
+    assert(yolo);
+
+    ///////////////////////////////////////////////////////////
+
+    yolo->getOutput(0)->setName(kOutputTensorName);
+    network->markOutput(*yolo->getOutput(0));
+
+    // Use setMemoryPoolLimit instead of deprecated setMaxWorkspaceSize
+    config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 1U << 30);
     // config->setFlag(nvinfer1::BuilderFlag::kFP16); // TODO: make this configurable with config file
     // modelInfo(network);  // TODO: remove this after debugging
     //std::cout << "Output channels: " << c2 << ", " << c3 << std::endl;  // TODO: remove after debugging
