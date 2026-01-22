@@ -11,7 +11,7 @@ set(CMAKE_CUDA_COMPILER /usr/local/cuda/bin/nvcc)
 enable_language(CUDA)
 
 include_directories(${PROJECT_SOURCE_DIR}/include)
-#include_directories(${PROJECT_SOURCE_DIR}/plugin)
+include_directories(${PROJECT_SOURCE_DIR}/plugin)
 
 # include and link dirs of cuda and tensorrt, you need adapt them if yours are different
 if(CMAKE_SYSTEM_PROCESSOR MATCHES "aarch64")
@@ -30,8 +30,8 @@ else()
   link_directories(/workspace/shared/TensorRT-8.6.3/lib)
 endif()
 
-#add_library(yololayerplugins SHARED ${PROJECT_SOURCE_DIR}/plugin/yololayer.cu)
-#target_link_libraries(yololayerplugins nvinfer cudart)
+add_library(yololayerplugins SHARED ${PROJECT_SOURCE_DIR}/plugin/yololayer.cu)
+target_link_libraries(yololayerplugins nvinfer cudart)
 
 find_package(OpenCV)
 include_directories(${OpenCV_INCLUDE_DIRS})
@@ -41,5 +41,5 @@ file(GLOB_RECURSE SRCS ${PROJECT_SOURCE_DIR}/src/*.cpp ${PROJECT_SOURCE_DIR}/src
 add_executable(yolo26_det ${PROJECT_SOURCE_DIR}/yolo26_det.cpp ${SRCS})
 target_link_libraries(yolo26_det nvinfer)
 target_link_libraries(yolo26_det cudart)
-#target_link_libraries(yolo26_det yololayerplugins)
+target_link_libraries(yolo26_det yololayerplugins)
 target_link_libraries(yolo26_det ${OpenCV_LIBS})
