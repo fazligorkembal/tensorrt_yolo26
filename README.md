@@ -29,7 +29,7 @@ Training code [link](https://github.com/ultralytics/ultralytics/archive/refs/tag
 ## Config
 
 * Choose the YOLO26 sub-model n/s/m/l/x from command line arguments. (For now only tested n model!)
-* Other configs please check [src/config.h](src/config.h)
+* Other configs please check [include/config.h](include/config.h)
 
 ## Build and Run
 
