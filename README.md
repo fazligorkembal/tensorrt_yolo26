@@ -18,7 +18,8 @@ Training code [link](https://github.com/ultralytics/ultralytics/archive/refs/tag
 
 ## COMING FEATURES
 * [⏳] Yolo26s-det, Yolo26m-det, Yolo26l-det, Yolo26sx-det
-* [⏳] SUPPORT BATCHED INPUTS
+* [⏳] Ssupport Batched Inputs
+* [⏳] Support Quantization
 * [⏳] Yolo26-cls models
 * [⏳] Yolo26-pose models
 * [⏳] Yolo26-seg models
