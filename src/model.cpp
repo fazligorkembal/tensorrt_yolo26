@@ -454,8 +454,8 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     ///////////////////////////////////////////////////////////
     int stridesLength = strides.size();
-    nvinfer1::IPluginV2Layer* yolo = addYoloLayer(
-            network, *concatFinalModifiedReshape->getOutput(0), strides, fm_sizes, stridesLength, false, false, false);
+    nvinfer1::IPluginV2Layer* yolo = addYoloLayer(network, *concatFinalModifiedReshape->getOutput(0), strides, fm_sizes,
+                                                  stridesLength, false, false, false);
     assert(yolo);
 
     ///////////////////////////////////////////////////////////

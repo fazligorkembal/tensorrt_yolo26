@@ -431,11 +431,9 @@ nvinfer1::ILayer* DWConv(nvinfer1::INetworkDefinition* network, std::map<std::st
     return ew;
 }
 
-nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network,
-                                       nvinfer1::ITensor& input, const std::vector<int>& strides,
-                                       const std::vector<int>& fm_sizes, int stridesLength,
-                                       bool is_segmentation, bool is_pose, bool is_obb)
-{
+nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network, nvinfer1::ITensor& input,
+                                       const std::vector<int>& strides, const std::vector<int>& fm_sizes,
+                                       int stridesLength, bool is_segmentation, bool is_pose, bool is_obb) {
     auto creator = getPluginRegistry()->getPluginCreator("YoloLayer_TRT", "1");
     const int netinfo_count = 9;
     const int total_count = netinfo_count + stridesLength;

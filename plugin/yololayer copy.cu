@@ -181,7 +181,6 @@ int YoloLayerPlugin::enqueue(int batchSize, const void* const* inputs, void* con
                              cudaStream_t stream) TRT_NOEXCEPT {
     gatherKernelLauncher(reinterpret_cast<const float* const*>(inputs), reinterpret_cast<float*>(outputs[0]), stream,
                          mInputWidth, mInputHeight, batchSize);
-
     return 0;
 }
 
@@ -191,69 +190,46 @@ __device__ float Logist(float data) {
 
 __global__ void gatherKernel(const float* input, float* output, int numElements, int maxoutobject, const int grid_h,
                              int grid_w, const int stride, int classes, int nk, float confkeypoints, int outputElem,
-                             bool is_segmentation, bool is_pose, bool is_obb) {
-    int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= numElements)
-        return;
-
-    int outputIdx = 0 * outputElem;  // TODO: ADD BATCH SUPPORT HERE
-
-    int xmin = input[idx * 84 + 0];
-    int ymin = input[idx * 84 + 1];
-    int xmax = input[idx * 84 + 2];
-    int ymax = input[idx * 84 + 3];
-
-    float score = 0.0f;
-    for (int c = 0; c < 80; c++) {
-        float conf = input[idx * 84 + 4 + c];
-        if (conf > 0.5) {
-            score = fmax(score, conf);
-        }
-    }
-    if (score < 0.5) {
-        return;
-    }
-
-    int count = (int)atomicAdd(output + outputIdx, 1);
-    if (count >= maxoutobject) {
-        return;
-    }
-
-    int det_size = sizeof(Detection) / sizeof(float);
-    Detection* det = (Detection*)(output + outputIdx + 1 + count * det_size);
-
-    float scale = fminf(640.0f / 1080.0f, 640.0f / 608.0f);    // TODO: GET FROM PARAMETERS WITH SCALE!
-    float offset_x = -scale * 1080.0f / 2.0f + 640.0f / 2.0f;  // TODO: GET FROM PARAMETERS WITH OFFSET!
-    float offset_y = -scale * 608.0f / 2.0f + 640.0f / 2.0f;   // TODO: GET FROM PARAMETERS WITH OFFSET!
-
-    det->conf = score;
-    det->class_id = 1;  // TODO: ADD CLASS ID HERE
-    det->bbox[0] = (xmin - offset_x) / scale;
-    det->bbox[1] = (ymin - offset_y) / scale;
-    det->bbox[2] = (xmax - offset_x) / scale;
-    det->bbox[3] = (ymax - offset_y) / scale;
-
-    // TODO: ADD KEYPOINTS, SEGMENTATION, OBB HERE
-}
+                             bool is_segmentation, bool is_pose, bool is_obb) {}
 
 void YoloLayerPlugin::gatherKernelLauncher(const float* const* inputs, float* outputs, cudaStream_t stream,
                                            int modelInputWidth, int modelInputHeight, int batchSize) {
-    // TODO: ADD BATCH SUPPORT, CURRENTLY ONLY BATCH=1 IS SUPPORTED
-    // TODO: ADD SEGMENTATION, POSE, OBB SUPPORT
-    // TODO: num_elem = batch_size * anchor_num
-    const float* input = inputs[0];
 
-    int outputElem = mMaxDetections * sizeof(Detection) / sizeof(float) + 1;
-    int num_elem = 8400;  // TODO: to be calculated based on input dimensions and anchors
+    int outputElem = 1 + mMaxDetections * sizeof(Detection) / sizeof(float);
+    cudaMemsetAsync(outputs, 0, batchSize * outputElem * sizeof(float), stream);
 
-    dim3 blockSize(mThreadCount);
-    dim3 gridSize((num_elem + mThreadCount - 1) / mThreadCount);
+    int max_grids = mStridesLength;
+    int flat_grids_len = 2 * max_grids;
+    int* flat_grids = new int[flat_grids_len];
 
-    cudaMemsetAsync(outputs, 0, batchSize * outputElem * sizeof(float), stream);  // TODO: adjust for batch size
+    for (int i = 0; i < max_grids; ++i) {
+        flat_grids[2 * i] = modelInputWidth / mStrides[i];
+        flat_grids[2 * i + 1] = modelInputHeight / mStrides[i];
+    }
 
-    gatherKernel<<<gridSize, blockSize, 0, stream>>>(
-            input, outputs, num_elem, mMaxDetections, modelInputHeight, modelInputWidth, 0, mClassCount,
-            mNumberOfPoints, mConfThresholdKeypoints, outputElem, mIsSegmentation, mIsPose, mIsObb);
+    int num_elem = 0;
+    for (unsigned int i = 0; i < max_grids; ++i) {
+        int grid_h = flat_grids[2 * i];
+        int grid_w = flat_grids[2 * i + 1];
+        int stride = mStrides[i];
+
+        num_elem = grid_h * grid_w * kBatchSize;
+
+        if (num_elem < mThreadCount) {
+            mThreadCount = num_elem;
+        }
+
+        dim3 blockSize(mThreadCount);
+        dim3 gridSize((num_elem + mThreadCount - 1) / mThreadCount);
+        gatherKernel<<<gridSize, blockSize, 0, stream>>>(inputs[i], outputs, num_elem, mMaxDetections, grid_h, grid_w,
+                                                         stride, mClassCount, mNumberOfPoints, mConfThresholdKeypoints,
+                                                         outputElem, mIsSegmentation, mIsPose, mIsObb);
+        std::cout << "Launched gatherKernel for stride " << stride << " with grid size (" << gridSize.x << ", "
+                  << gridSize.y << ", " << gridSize.z << ") and block size (" << blockSize.x << ", " << blockSize.y
+                  << ", " << blockSize.z << ")" << std::endl;
+        std::cout << "  Grid Height: " << grid_h << ", Grid Width: " << grid_w << ", Num Elements: " << num_elem
+                  << std::endl;
+    }
 }
 
 PluginFieldCollection YoloLayerPluginCreator::mFC{};

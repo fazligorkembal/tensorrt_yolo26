@@ -12,7 +12,7 @@
 Logger gLogger;
 using namespace nvinfer1;
 const int kOutputSize = kMaxNumOutputBbox * sizeof(Detection) / sizeof(float) + 1;
-int32_t debug_kOutputSize = 1 * 84 * 8400;  // TODO: remove after debugging
+int32_t debug_kOutputSize = 1 * 27001;  // TODO: remove after debugging
 
 void serialize_engine(const std::string& wts_name, std::string& engine_name, float& gd, float& gw, int& max_channels,
                       std::string& type) {
@@ -218,13 +218,36 @@ int main(int argc, char** argv) {
         infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, decode_ptr_host,
               decode_ptr_device, model_bboxes, cuda_post_process);
 
+        int det_size = sizeof(Detection) / sizeof(float);
+        for (int i = 0; i < output_buffer_host[0]; i++) {
+            std::cout << "Bbox: " << output_buffer_host[1 + det_size * i + 0] << " "
+                      << output_buffer_host[1 + det_size * i + 1] << " " << output_buffer_host[1 + det_size * i + 2]
+                      << " " << output_buffer_host[1 + det_size * i + 3]
+                      << " Score: " << output_buffer_host[1 + det_size * i + 4] << std::endl;
+
+            int xmin = static_cast<int>(output_buffer_host[1 + det_size * i + 0]);
+            int ymin = static_cast<int>(output_buffer_host[1 + det_size * i + 1]);
+            int xmax = static_cast<int>(output_buffer_host[1 + det_size * i + 2]);
+            int ymax = static_cast<int>(output_buffer_host[1 + det_size * i + 3]);
+            cv::rectangle(disp_img, cv::Point(xmin, ymin), cv::Point(xmax, ymax), cv::Scalar(0, 255, 0), 2);
+        }
+        std::cout << "disp_img.cols: " << disp_img.cols << " disp_img.rows: " << disp_img.rows << std::endl;
+        cv::imwrite("result.jpg", disp_img);  // TODO: remove after debugging
+        /*
         // Letterbox affine transformation parametreleri (preprocess.cu ile ayni)
         float scale = std::min((float)kInputW / disp_img.cols, (float)kInputH / disp_img.rows);
         float offset_x = -scale * disp_img.cols * 0.5f + kInputW * 0.5f;
         float offset_y = -scale * disp_img.rows * 0.5f + kInputH * 0.5f;
 
+        // std::ofstream debug_out("full_result.txt");
+        // for (int j = 0; j < kBatchSize * debug_kOutputSize; j++) {  // TODO: remove after debugging
+        //     debug_out << output_buffer_host[j] << " ";
+        //     if ((j + 1) % 84 == 0)
+        //         debug_out << std::endl;
+        // }
+        // debug_out.close();
+
         for (int row = 0; row < 8400; row++) {  // TODO: remove after debugging
-            // Model koordinatlarini orijinal goruntu koordinatlarina cevir
             float xmin = (output_buffer_host[row * 84 + 0] - offset_x) / scale;
             float ymin = (output_buffer_host[row * 84 + 1] - offset_y) / scale;
             float xmax = (output_buffer_host[row * 84 + 2] - offset_x) / scale;
@@ -246,12 +269,13 @@ int main(int argc, char** argv) {
             }
         }
 
-        cv::imwrite("result.jpg", disp_img);  // TODO: remove after debugging
+        
 
         std::ofstream out("output.txt");
         for (int j = 0; j < debug_kOutputSize; j++) {  // TODO: remove after debugging
             out << output_buffer_host[j] << std::endl;
         }
         out.close();
+        */
     }
 }

@@ -97,15 +97,9 @@ class API YoloLayerPluginCreator : public IPluginCreator {
     IPluginV2IOExt* deserializePlugin(const char* name, const void* serialData,
                                       size_t serialLength) TRT_NOEXCEPT override;
 
-    void setPluginNamespace(const char* pluginNamespace) TRT_NOEXCEPT override
-    {
-        mNamespace = pluginNamespace;
-    }
+    void setPluginNamespace(const char* pluginNamespace) TRT_NOEXCEPT override { mNamespace = pluginNamespace; }
 
-    const char* getPluginNamespace() const TRT_NOEXCEPT override
-    {
-        return mNamespace.c_str();
-    }
+    const char* getPluginNamespace() const TRT_NOEXCEPT override { return mNamespace.c_str(); }
 
    private:
     std::string mNamespace;
