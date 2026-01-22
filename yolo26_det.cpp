@@ -122,6 +122,11 @@ int main(int argc, char** argv) {
         return -1;
     }
 
+    if (cuda_post_process == "g") {
+        std::cerr << "Do not yet support GPU post processing" << std::endl;  // TODO: SUPPORT THIS
+        exit(-1);
+    }
+
     // Create a model using the API directly and serialize it to a file
     if (!wts_name.empty()) {
         serialize_engine(wts_name, engine_name, gd, gw, max_channels, type);
