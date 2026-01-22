@@ -127,8 +127,7 @@ int main(int argc, char** argv) {
         exit(-1);
     }
 
-    if(type != "n")
-    {
+    if (type != "n") {
         std::cout << "Using model type: " << type << ", but not tested yet. Process may fail." << std::endl;
     }
 

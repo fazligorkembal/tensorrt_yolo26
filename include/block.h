@@ -35,7 +35,7 @@ nvinfer1::ILayer* conv(nvinfer1::INetworkDefinition* network, std::map<std::stri
                        nvinfer1::ITensor& input, int ch, std::vector<int> k, int s, std::string lname, int g = 1,
                        bool act = true);
 
-nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network,
-                                       nvinfer1::ITensor& input, const std::vector<int>& strides,
-                                       const std::vector<int>& fm_sizes, int stridesLength,
-                                       bool is_segmentation, bool is_pose, bool is_obb, int anchorCount);
+nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network, nvinfer1::ITensor& input,
+                                       const std::vector<int>& strides, const std::vector<int>& fm_sizes,
+                                       int stridesLength, bool is_segmentation, bool is_pose, bool is_obb,
+                                       int anchorCount);
