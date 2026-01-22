@@ -127,6 +127,11 @@ int main(int argc, char** argv) {
         exit(-1);
     }
 
+    if(type != "n")
+    {
+        std::cout << "Using model type: " << type << ", but not tested yet. Process may fail." << std::endl;
+    }
+
     // Create a model using the API directly and serialize it to a file
     if (!wts_name.empty()) {
         serialize_engine(wts_name, engine_name, gd, gw, max_channels, type);
