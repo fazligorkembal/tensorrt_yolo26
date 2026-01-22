@@ -37,7 +37,7 @@ Training code [link](https://github.com/ultralytics/ultralytics/archive/refs/tag
 
 ```shell
 # Download ultralytics
-wget https://github.com/ultralytics/ultralytics/archive/refs/tags/v4.4.0.zip -O ultralytics-8.4.0.zip
+wget https://github.com/ultralytics/ultralytics/archive/refs/tags/v8.4.0.zip -O ultralytics-8.4.0.zip
 # Unzip ultralytics
 unzip ultralytics-8.4.0.zip
 cd ultralytics-8.4.0
