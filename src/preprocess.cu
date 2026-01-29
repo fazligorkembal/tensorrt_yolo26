@@ -132,3 +132,8 @@ void cuda_preprocess_init(int max_image_size) {
     // prepare input data in device memory
     CUDA_CHECK(cudaMalloc((void**)&img_buffer_device, max_image_size * 3));
 }
+
+void cuda_preprocess_destroy() {
+    CUDA_CHECK(cudaFree(img_buffer_device));
+    CUDA_CHECK(cudaFreeHost(img_buffer_host));
+}

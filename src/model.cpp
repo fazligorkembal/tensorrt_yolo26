@@ -142,13 +142,13 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     nvinfer1::IElementWiseLayer* block22 =
             C3K2(network, weightMap, *cat21->getOutput(0), get_width(1024, gw, max_channels),
-                 get_width(1024, gw, max_channels), get_depth(2, gd), true, true, true, 0.5, "model.22");
+                 get_width(1024, gw, max_channels), 1, true, true, true, 0.5, "model.22"); // WARN: get_depth(2, gd) changed to 1.
 
     /*******************************************************************************************************
     *********************************************  YOLO26 OUTPUT  ********************************************
     *******************************************************************************************************/
 
-    int c2 = std::max(std::max(16, get_width(256, gw, max_channels) / 4), 16 * 4);
+    int c2 = std::max(std::max(16, get_width(256, gw, max_channels)), 16 * 4);
     int c3 = std::max(get_width(256, gw, max_channels), std::min(kNumClass, 100));
 
     /////////////////////////////////////////////////////
@@ -201,9 +201,16 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     reshape23_4->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
 
     /////////////////////////////////////////////////////
-
-    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_0 = convBnSiLU(
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_0;
+    if (type == "m" || type == "l" || type == "x")
+    {
+        conv23_one2one_cv3_2_0_0 = convBnSiLU(
+            network, weightMap, *block22->getOutput(0), c2 * 2, {3, 3}, 1, "model.23.one2one_cv3.2.0.0", c2 * 2);
+    }else{
+        conv23_one2one_cv3_2_0_0 = convBnSiLU(
             network, weightMap, *block22->getOutput(0), c2 * 4, {3, 3}, 1, "model.23.one2one_cv3.2.0.0", c2 * 4);
+    }
+     
     nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_1 =
             convBnSiLU(network, weightMap, *conv23_one2one_cv3_2_0_0->getOutput(0), c3, {1, 1}, 1,
                        "model.23.one2one_cv3.2.0.1", 1);

@@ -127,10 +127,6 @@ int main(int argc, char** argv) {
         exit(-1);
     }
 
-    if (type != "n") {
-        std::cout << "Using model type: " << type << ", but not tested yet. Process may fail." << std::endl;
-    }
-
     // Create a model using the API directly and serialize it to a file
     if (!wts_name.empty()) {
         serialize_engine(wts_name, engine_name, gd, gw, max_channels, type);
@@ -193,4 +189,19 @@ int main(int argc, char** argv) {
             cv::imwrite("_" + img_name_batch[j], img_batch[j]);
         }
     }
+
+    // Release stream and buffers
+    cudaStreamDestroy(stream);
+    CUDA_CHECK(cudaFree(device_buffers[0]));
+    CUDA_CHECK(cudaFree(device_buffers[1]));
+    CUDA_CHECK(cudaFree(decode_ptr_device));
+    delete[] decode_ptr_host;
+    delete[] output_buffer_host;
+    cuda_preprocess_destroy();
+    // Destroy the engine
+    delete context;
+    delete engine;
+    delete runtime;
+
+    return 0;
 }
