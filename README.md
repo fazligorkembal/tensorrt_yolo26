@@ -14,10 +14,9 @@ Training code [link](https://github.com/ultralytics/ultralytics/archive/refs/tag
 
 ## Support
 
-* [✅] Yolo26n-det support FP32/FP16 and C++ API
+* [✅] Yolo26n-det, Yolo26s-det, Yolo26m-det, Yolo26l-det, Yolo26sx-det support FP32/FP16 and C++ API
 
 ## COMING FEATURES
-* [⏳] Yolo26s-det, Yolo26m-det, Yolo26l-det, Yolo26sx-det
 * [⏳] Windows OS Support
 * [⏳] Ssupport Batched Inputs
 * [⏳] Support Quantization
