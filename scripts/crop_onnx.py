@@ -8,7 +8,8 @@ new_model_path = (
     "/home/user/Documents/tensorrt_yolo26/build/yolo26n_cropped.onnx"
 )
 image_path = "/home/user/Documents/tensorrt_yolo26/images/P0005.jpg"
-last_layer = "/model.10/cv2/act/Mul_output_0"
+last_layer = "/model.23/Transpose_output_0"
+
 model = onnx.load(model_path)
 
 existing = [o.name for o in model.graph.output]

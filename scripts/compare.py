@@ -1,7 +1,7 @@
 import numpy as np
 
-file_onnx = "/home/user/Documents/tensorrt_yolo26/build/onnx_input.txt"
-file_engine = "/home/user/Documents/tensorrt_yolo26/build/engine_input.txt"
+file_onnx = "/home/user/Documents/tensorrt_yolo26/build/onnx_output.txt"
+file_engine = "/home/user/Documents/tensorrt_yolo26/build/engine_output.txt"
 
 with open(file_onnx, "r") as f:
     onnx_output = f.readlines()
