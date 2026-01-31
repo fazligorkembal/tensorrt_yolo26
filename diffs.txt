@@ -1,0 +1,21 @@
+Input tbbt:
+    Onnx Length: 3145728
+    Engine Length: 3145728
+    Number of differences greater than 500: 0
+    Percentage of differences greater than 500: 0.000000%
+    Max difference between ONNX and Engine outputs: 0.6695882281064988
+    Mean difference between ONNX and Engine outputs: 0.01136934466390875
+    Min difference between ONNX and Engine outputs: 0.0
+    ONNX MEAN: 0.5295617283077608
+    ENGINE MEAN: 0.5295239618239896
+
+Input P0005:
+    Onnx Length: 3145728
+    Engine Length: 3145728
+    Number of differences greater than 500: 0
+    Percentage of differences greater than 500: 0.000000%
+    Max difference between ONNX and Engine outputs: 0.5478739269447327
+    Mean difference between ONNX and Engine outputs: 0.02244217212925893
+    Min difference between ONNX and Engine outputs: 0.0
+    ONNX MEAN: 0.3893926364437423
+    ENGINE MEAN: 0.389636066003832

@@ -8,7 +8,6 @@
 #include "preprocess.h"
 #include "types.h"
 #include "utils.h"
-
 #include "yololayer.h"
 
 Logger gLogger;
@@ -20,7 +19,7 @@ void serialize_engine(const std::string& wts_name, std::string& engine_name, flo
     IBuilder* builder = createInferBuilder(gLogger);
     IBuilderConfig* config = builder->createBuilderConfig();
     IHostMemory* serialized_engine =
-            buildEngineYolo26Det(builder, config, DataType::kFLOAT, wts_name, gd, gw, max_channels, type);
+            buildEngineYolo26Obb(builder, config, DataType::kFLOAT, wts_name, gd, gw, max_channels, type);
 
     assert(serialized_engine);
     std::ofstream p(engine_name, std::ios::binary);
@@ -66,11 +65,11 @@ void prepare_buffer(ICudaEngine* engine, float** input_buffer_device, float** ou
     // Note that indices are guaranteed to be less than IEngine::getNbBindings()
     const int inputIndex = engine->getBindingIndex(kInputTensorName);
     const int outputIndex = engine->getBindingIndex(kOutputTensorName);
+
     assert(inputIndex == 0);
     assert(outputIndex == 1);
-
     // Create GPU buffers on device
-    CUDA_CHECK(cudaMalloc((void**)input_buffer_device, kBatchSize * 3 * kInputH * kInputW * sizeof(float)));
+    CUDA_CHECK(cudaMalloc((void**)input_buffer_device, kBatchSize * 3 * kObbInputH * kObbInputW * sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**)output_buffer_device, kBatchSize * kOutputSize * sizeof(float)));
 
     *output_buffer_host = new float[kBatchSize * kOutputSize];
@@ -84,7 +83,6 @@ void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, flo
 
     CUDA_CHECK(cudaMemcpyAsync(output, buffers[1], batchsize * kOutputSize * sizeof(float), cudaMemcpyDeviceToHost,
                                stream));
-
     auto end = std::chrono::system_clock::now();
     std::cout << "inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
               << "ms" << std::endl;
@@ -98,16 +96,14 @@ int main(int argc, char** argv) {
     std::string engine_name;
     std::string img_dir;
     std::string type;
-    int model_bboxes = 0;
-    float gd = 0, gw = 0;
+    int model_bboxes;
+    float gd = 0.0f, gw = 0.0f;
     int max_channels = 0;
 
     if (!parse_args(argc, argv, wts_name, engine_name, img_dir, type, gd, gw, max_channels)) {
         std::cerr << "Arguments not right!" << std::endl;
-        std::cerr << "./yolo26_det -s [.wts] [.engine] [n/s/m/l/x]  // serialize model to "
-                     "plan file"
-                  << std::endl;
-        std::cerr << "./yolo26_det -d [.engine] ../images  // deserialize plan file and run inference" << std::endl;
+        std::cerr << "./yolo26_obb -s [.wts] [.engine] [n/s/m/l/x]  // serialize model to plan file" << std::endl;
+        std::cerr << "./yolo26_obb -d [.engine] ../images  // deserialize plan file and run inference" << std::endl;
         return -1;
     }
 
@@ -131,9 +127,6 @@ int main(int argc, char** argv) {
     float* device_buffers[2];
     float* output_buffer_host = nullptr;
 
-    // WARN: If you change kMaxNumOutputBbox, it must be smaller than the value kMaxNumOutputBbox in config.h,
-    // otherwise there will be memory overflow!
-    // Or you should modify the config.h and recompile.
     setPluginDeviceParams(kConfThresh);
 
     // Read images from directory
@@ -145,6 +138,7 @@ int main(int argc, char** argv) {
 
     prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host);
 
+    // batch predict
     for (size_t i = 0; i < file_names.size(); i += kBatchSize) {
         // Get a batch of images
         std::vector<cv::Mat> img_batch;
@@ -154,19 +148,14 @@ int main(int argc, char** argv) {
             img_batch.push_back(img);
             img_name_batch.push_back(file_names[j]);
         }
-
         // Preprocess
-        cuda_batch_preprocess(img_batch, device_buffers[0], kInputW, kInputH, stream);
+        cuda_batch_preprocess(img_batch, device_buffers[0], kObbInputW, kObbInputH, stream);
 
-        // Run inference
         infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, model_bboxes);
 
         std::vector<std::vector<Detection>> res_batch;
-        batch_decode(res_batch, output_buffer_host, kBatchSize, kOutputSize);
-
-        // Draw bounding boxes
-        draw_bbox(img_batch, res_batch);
-
+        batch_decode_obb(res_batch, output_buffer_host, img_batch.size(), kOutputSize);
+        draw_bbox_obb(img_batch, res_batch);
         // Save images
         for (size_t j = 0; j < img_batch.size(); j++) {
             cv::imwrite("_" + img_name_batch[j], img_batch[j]);

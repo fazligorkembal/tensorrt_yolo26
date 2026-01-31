@@ -6,6 +6,8 @@
 #include "types.h"
 #include "yololayer.h"
 
+__device__ float d_confThreshold = 0.4f;
+
 namespace Tn {
 template <typename T>
 void write(char*& buffer, const T& val) {
@@ -25,16 +27,19 @@ __device__ float sigmoid(float x) {
 }
 
 namespace nvinfer1 {
-YoloLayerPlugin::YoloLayerPlugin(int classCount, int numberOfPoints, float confThresholdKeypoints, int inputWidth,
-                                 int inputHeight, int maxDetections, bool isSegmentation, bool isPose, bool isObb,
-                                 int anchor_count) {
+
+void setPluginDeviceParams(float confThreshold) {
+    cudaMemcpyToSymbol(d_confThreshold, &confThreshold, sizeof(float));
+}
+
+YoloLayerPlugin::YoloLayerPlugin(int classCount, int numberOfPoints, int maxDetections, bool isDetection,
+                                 bool isSegmentation, bool isPose, bool isObb, int anchor_count) {
+
     mClassCount = classCount;
     mNumberOfPoints = numberOfPoints;
-    mConfThresholdKeypoints = confThresholdKeypoints;
     mThreadCount = 256;
-    mInputWidth = inputWidth;
-    mInputHeight = inputHeight;
     mMaxDetections = maxDetections;
+    mIsDetection = isDetection;
     mIsSegmentation = isSegmentation;
     mIsPose = isPose;
     mIsObb = isObb;
@@ -44,10 +49,9 @@ YoloLayerPlugin::YoloLayerPlugin(int classCount, int numberOfPoints, float confT
     std::cout << "YoloLayerPlugin created with the following parameters:" << std::endl;
     std::cout << "  Class Count: " << mClassCount << std::endl;
     std::cout << "  Number of Points: " << mNumberOfPoints << std::endl;
-    std::cout << "  Confidence Threshold Keypoints: " << mConfThresholdKeypoints << std::endl;
-    std::cout << "  Input Width: " << mInputWidth << std::endl;
-    std::cout << "  Input Height: " << mInputHeight << std::endl;
+    std::cout << "  Confidence Threshold Keypoints: " << mConfThreshold << std::endl;
     std::cout << "  Max Detections: " << mMaxDetections << std::endl;
+    std::cout << "  Is Detection: " << mIsDetection << std::endl;
     std::cout << "  Is Segmentation: " << mIsSegmentation << std::endl;
     std::cout << "  Is Pose: " << mIsPose << std::endl;
     std::cout << "  Is OBB: " << mIsObb << std::endl;
@@ -67,11 +71,9 @@ YoloLayerPlugin::YoloLayerPlugin(const void* data, size_t length) {
     const char *d = reinterpret_cast<const char*>(data), *a = d;
     read(d, mClassCount);
     read(d, mNumberOfPoints);
-    read(d, mConfThresholdKeypoints);
     read(d, mThreadCount);
-    read(d, mInputWidth);
-    read(d, mInputHeight);
     read(d, mMaxDetections);
+    read(d, mIsDetection);
     read(d, mIsSegmentation);
     read(d, mIsPose);
     read(d, mIsObb);
@@ -86,11 +88,9 @@ void YoloLayerPlugin::serialize(void* buffer) const TRT_NOEXCEPT {
     char *d = static_cast<char*>(buffer), *a = d;
     write(d, mClassCount);
     write(d, mNumberOfPoints);
-    write(d, mConfThresholdKeypoints);
     write(d, mThreadCount);
-    write(d, mInputWidth);
-    write(d, mInputHeight);
     write(d, mMaxDetections);
+    write(d, mIsDetection);
     write(d, mIsSegmentation);
     write(d, mIsPose);
     write(d, mIsObb);
@@ -100,9 +100,8 @@ void YoloLayerPlugin::serialize(void* buffer) const TRT_NOEXCEPT {
 }
 
 size_t YoloLayerPlugin::getSerializationSize() const TRT_NOEXCEPT {
-    return sizeof(mClassCount) + sizeof(mNumberOfPoints) + sizeof(mConfThresholdKeypoints) + sizeof(mThreadCount) +
-           sizeof(mInputWidth) + sizeof(mInputHeight) + sizeof(mMaxDetections) + sizeof(mIsSegmentation) +
-           sizeof(mIsPose) + sizeof(mIsObb) + sizeof(mAnchorCount);
+    return sizeof(mClassCount) + sizeof(mNumberOfPoints) + sizeof(mThreadCount) + sizeof(mMaxDetections) +
+           sizeof(mIsDetection) + sizeof(mIsSegmentation) + sizeof(mIsPose) + sizeof(mIsObb) + sizeof(mAnchorCount);
 }
 
 int YoloLayerPlugin::initialize() TRT_NOEXCEPT {
@@ -158,10 +157,8 @@ void YoloLayerPlugin::destroy() TRT_NOEXCEPT {
 }
 
 nvinfer1::IPluginV2IOExt* YoloLayerPlugin::clone() const TRT_NOEXCEPT {
-
-    YoloLayerPlugin* p =
-            new YoloLayerPlugin(mClassCount, mNumberOfPoints, mConfThresholdKeypoints, mInputWidth, mInputHeight,
-                                mMaxDetections, mIsSegmentation, mIsPose, mIsObb, mAnchorCount);
+    YoloLayerPlugin* p = new YoloLayerPlugin(mClassCount, mNumberOfPoints, mMaxDetections, mIsDetection,
+                                             mIsSegmentation, mIsPose, mIsObb, mAnchorCount);
     p->setPluginNamespace(mPluginNamespace);
     return p;
 }
@@ -169,7 +166,7 @@ nvinfer1::IPluginV2IOExt* YoloLayerPlugin::clone() const TRT_NOEXCEPT {
 int YoloLayerPlugin::enqueue(int batchSize, const void* const* inputs, void* const* outputs, void* workspace,
                              cudaStream_t stream) TRT_NOEXCEPT {
     gatherKernelLauncher(reinterpret_cast<const float* const*>(inputs), reinterpret_cast<float*>(outputs[0]), stream,
-                         mInputWidth, mInputHeight, batchSize);  // TODO: MOVE mInputWidth/Height TO constant gpu memory
+                         batchSize);
 
     return 0;
 }
@@ -178,36 +175,45 @@ __device__ float Logist(float data) {
     return 1.f / (1.f + expf(-data));
 }
 
-__global__ void gatherKernel(const float* input, float* output, int numElements, int maxoutobject, const int grid_h,
-                             const int grid_w, const int stride, int class_count, int nk, float confkeypoints,
-                             int outputElem, bool is_segmentation, bool is_pose,
-                             bool is_obb) {  // TODO: REMOVE UNUSED PARAMETERS
+__global__ void gatherKernel(const float* input, float* output, int num_elements, int max_out_object, int class_count,
+                             int nk, int output_elem, bool is_detection, bool is_segmentation, bool is_pose,
+                             bool is_obb) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
-    if (idx >= numElements)
+    if (idx >= num_elements)
         return;
 
-    int outputIdx = 0 * outputElem;  // TODO: ADD BATCH SUPPORT HERE
+    int outputIdx = 0 * output_elem;  // TODO: ADD BATCH SUPPORT HERE
+    int anchor_size = -1;
+    float angle = 0.0f;
 
-    int xmin = input[idx * (4 + class_count) + 0];
-    int ymin = input[idx * (4 + class_count) + 1];
-    int xmax = input[idx * (4 + class_count) + 2];
-    int ymax = input[idx * (4 + class_count) + 3];
+    if (is_detection) {
+        anchor_size = 4 + class_count;
+    } else if (is_obb) {
+        anchor_size = 5 + class_count;
+        angle = input[idx * (anchor_size) + 4 + class_count];
+    }
+
+    float xmin = input[idx * (anchor_size) + 0];
+    float ymin = input[idx * (anchor_size) + 1];
+    float xmax = input[idx * (anchor_size) + 2];
+    float ymax = input[idx * (anchor_size) + 3];
 
     float score = 0.0f;
     int class_id = -1;
     for (int c = 0; c < class_count; c++) {
-        float conf = input[idx * (class_count + 4) + 4 + c];
+        float conf = input[idx * (anchor_size) + 4 + c];
         if (conf > score) {
             score = conf;
             class_id = c;
         }
     }
-    if (score < 0.5) {  // TODO: MAKE THRESHOLD A PARAMETER
+
+    if (score < d_confThreshold) {
         return;
     }
 
     int count = (int)atomicAdd(output + outputIdx, 1);
-    if (count >= maxoutobject) {
+    if (count >= max_out_object) {
         return;
     }
 
@@ -229,33 +235,37 @@ __global__ void gatherKernel(const float* input, float* output, int numElements,
     */
 
     det->conf = score;
-    det->class_id = class_id;  // TODO: ADD CLASS ID HERE
+    det->class_id = class_id;
     det->bbox[0] = xmin;
     det->bbox[1] = ymin;
     det->bbox[2] = xmax;
     det->bbox[3] = ymax;
 
+    if (is_obb) {
+        det->angle = angle;
+    }
+
     // TODO: ADD KEYPOINTS, SEGMENTATION, OBB HERE
 }
 
 void YoloLayerPlugin::gatherKernelLauncher(const float* const* inputs, float* outputs, cudaStream_t stream,
-                                           int modelInputWidth, int modelInputHeight, int batchSize) {
+                                           int batchSize) {
     // TODO: ADD BATCH SUPPORT, CURRENTLY ONLY BATCH=1 IS SUPPORTED
     // TODO: ADD SEGMENTATION, POSE, OBB SUPPORT
     // TODO: num_elem = batch_size * anchor_num
     const float* input = inputs[0];
 
     int outputElem = mMaxDetections * sizeof(Detection) / sizeof(float) + 1;
-    int num_elem = 8400;  // TODO: to be calculated based on input dimensions and anchors
+    int num_elem = mAnchorCount;  // Use anchor count from model configuration
 
     dim3 blockSize(mThreadCount);
     dim3 gridSize((num_elem + mThreadCount - 1) / mThreadCount);
 
     cudaMemsetAsync(outputs, 0, batchSize * outputElem * sizeof(float), stream);  // TODO: adjust for batch size
 
-    gatherKernel<<<gridSize, blockSize, 0, stream>>>(
-            input, outputs, num_elem, mMaxDetections, modelInputHeight, modelInputWidth, 0, mClassCount,
-            mNumberOfPoints, mConfThresholdKeypoints, outputElem, mIsSegmentation, mIsPose, mIsObb);
+    gatherKernel<<<gridSize, blockSize, 0, stream>>>(input, outputs, num_elem, mMaxDetections, mClassCount,
+                                                     mNumberOfPoints, outputElem, mIsDetection, mIsSegmentation,
+                                                     mIsPose, mIsObb);
 }
 
 PluginFieldCollection YoloLayerPluginCreator::mFC{};
@@ -280,24 +290,22 @@ const PluginFieldCollection* YoloLayerPluginCreator::getFieldNames() TRT_NOEXCEP
 }
 
 IPluginV2IOExt* YoloLayerPluginCreator::createPlugin(const char* name, const PluginFieldCollection* fc) TRT_NOEXCEPT {
+
     assert(fc->nbFields == 1);
     assert(strcmp(fc->fields[0].name, "combinedInfo") == 0);
     const int* combinedInfo = static_cast<const int*>(fc->fields[0].data);
-    int net_info_count = 9;
+    int net_info_count = fc->fields[0].length;
     int class_count = combinedInfo[0];
     int number_of_points = combinedInfo[1];
-    float conf_threshold_keypoints = combinedInfo[2];
-    int input_width = combinedInfo[3];
-    int input_height = combinedInfo[4];
-    int max_detections = combinedInfo[5];
-    bool is_segmentation = combinedInfo[6];
-    bool is_pose = combinedInfo[7];
-    bool is_obb = combinedInfo[8];
-    int anchor_count = combinedInfo[9];
+    int max_detections = combinedInfo[2];
+    bool is_detection = combinedInfo[3];
+    bool is_segmentation = combinedInfo[4];
+    bool is_pose = combinedInfo[5];
+    bool is_obb = combinedInfo[6];
+    int anchor_count = combinedInfo[7];
 
-    YoloLayerPlugin* plugin =
-            new YoloLayerPlugin(class_count, number_of_points, conf_threshold_keypoints, input_width, input_height,
-                                max_detections, is_segmentation, is_pose, is_obb, anchor_count);
+    YoloLayerPlugin* plugin = new YoloLayerPlugin(class_count, number_of_points, max_detections, is_detection,
+                                                  is_segmentation, is_pose, is_obb, anchor_count);
     plugin->setPluginNamespace(mNamespace.c_str());
     return plugin;
 }

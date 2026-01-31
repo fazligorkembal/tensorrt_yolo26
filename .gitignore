@@ -1,5 +1,4 @@
 **/build/**
-**/images/**
 **/models/**
 **/*.onnx
 **/*.engine
