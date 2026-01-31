@@ -85,8 +85,7 @@ static inline int read_labels(const std::string labels_filename, std::unordered_
 }
 
 static inline bool parse_args(int argc, char** argv, std::string& wts, std::string& engine, std::string& img_dir,
-                              std::string& type, std::string& cuda_post_process, float& gd, float& gw,
-                              int& max_channels) {
+                              std::string& type, float& gd, float& gw, int& max_channels) {
     if (argc < 4)
         return false;
     if (std::string(argv[1]) == "-s" && (argc == 5)) {
@@ -122,10 +121,9 @@ static inline bool parse_args(int argc, char** argv, std::string& wts, std::stri
         } else {
             return false;
         }
-    } else if (std::string(argv[1]) == "-d" && argc == 5) {
+    } else if (std::string(argv[1]) == "-d" && argc == 4) {
         engine = std::string(argv[2]);
         img_dir = std::string(argv[3]);
-        cuda_post_process = std::string(argv[4]);
     } else {
         return false;
     }

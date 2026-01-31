@@ -8,11 +8,11 @@
 #include "preprocess.h"
 #include "types.h"
 #include "utils.h"
+#include "yololayer.h"
 
 Logger gLogger;
 using namespace nvinfer1;
-// const int kOutputSize = kMaxNumOutputBbox * sizeof(Detection) / sizeof(float) + 1;
-const int kOutputSize = 1 * 1 * 20 * 21504;
+const int kOutputSize = kMaxNumOutputBbox * sizeof(Detection) / sizeof(float) + 1;
 
 void serialize_engine(const std::string& wts_name, std::string& engine_name, float& gd, float& gw, int& max_channels,
                       std::string& type) {
@@ -59,8 +59,7 @@ void deserialize_engine(std::string& engine_name, IRuntime** runtime, ICudaEngin
 }
 
 void prepare_buffer(ICudaEngine* engine, float** input_buffer_device, float** output_buffer_device,
-                    float** output_buffer_host, float** decode_ptr_host, float** decode_ptr_device,
-                    std::string cuda_post_process) {
+                    float** output_buffer_host) {
     assert(engine->getNbBindings() == 2);
     // In order to bind the buffers, we need to know the names of the input and output tensors.
     // Note that indices are guaranteed to be less than IEngine::getNbBindings()
@@ -73,31 +72,20 @@ void prepare_buffer(ICudaEngine* engine, float** input_buffer_device, float** ou
     CUDA_CHECK(cudaMalloc((void**)input_buffer_device, kBatchSize * 3 * kObbInputH * kObbInputW * sizeof(float)));
     CUDA_CHECK(cudaMalloc((void**)output_buffer_device, kBatchSize * kOutputSize * sizeof(float)));
 
-    if (cuda_post_process == "c") {
-        *output_buffer_host = new float[kBatchSize * kOutputSize];
-    } else if (cuda_post_process == "g") {
-        std::cerr << "Do not yet support GPU post processing" << std::endl;  // TODO: SUPPORT THIS
-        assert(false);
-    }
+    *output_buffer_host = new float[kBatchSize * kOutputSize];
 }
 
 void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, float* output, int batchsize,
-           float* decode_ptr_host, float* decode_ptr_device, int model_bboxes, std::string cuda_post_process) {
+           int model_bboxes) {
     // infer on the batch asynchronously, and DMA output back to host
     auto start = std::chrono::system_clock::now();
     context.enqueueV2(buffers, stream, nullptr);
 
-    if (cuda_post_process == "c") {
-        CUDA_CHECK(cudaMemcpyAsync(output, buffers[1], batchsize * kOutputSize * sizeof(float), cudaMemcpyDeviceToHost,
-                                   stream));
-        auto end = std::chrono::system_clock::now();
-        std::cout << "inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
-                  << "ms" << std::endl;
-
-    } else if (cuda_post_process == "g") {
-        std::cerr << "Do not yet support GPU post processing" << std::endl;  // TODO: SUPPORT THIS
-        assert(false);
-    }
+    CUDA_CHECK(cudaMemcpyAsync(output, buffers[1], batchsize * kOutputSize * sizeof(float), cudaMemcpyDeviceToHost,
+                               stream));
+    auto end = std::chrono::system_clock::now();
+    std::cout << "inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
+              << "ms" << std::endl;
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
 }
@@ -108,16 +96,14 @@ int main(int argc, char** argv) {
     std::string engine_name;
     std::string img_dir;
     std::string type;
-    std::string cuda_post_process;
     int model_bboxes;
     float gd = 0.0f, gw = 0.0f;
     int max_channels = 0;
 
-    if (!parse_args(argc, argv, wts_name, engine_name, img_dir, type, cuda_post_process, gd, gw, max_channels)) {
+    if (!parse_args(argc, argv, wts_name, engine_name, img_dir, type, gd, gw, max_channels)) {
         std::cerr << "Arguments not right!" << std::endl;
         std::cerr << "./yolo26_obb -s [.wts] [.engine] [n/s/m/l/x]  // serialize model to plan file" << std::endl;
-        std::cerr << "./yolo26_obb -d [.engine] ../images  [c/g]// deserialize plan file and run inference"
-                  << std::endl;
+        std::cerr << "./yolo26_obb -d [.engine] ../images  // deserialize plan file and run inference" << std::endl;
         return -1;
     }
 
@@ -140,8 +126,8 @@ int main(int argc, char** argv) {
     // Prepare cpu and gpu buffers
     float* device_buffers[2];
     float* output_buffer_host = nullptr;
-    float* decode_ptr_host = nullptr;
-    float* decode_ptr_device = nullptr;
+
+    setPluginDeviceParams(kConfThresh);
 
     // Read images from directory
     std::vector<std::string> file_names;
@@ -150,8 +136,7 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host, &decode_ptr_host,
-                   &decode_ptr_device, cuda_post_process);
+    prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host);
 
     // batch predict
     for (size_t i = 0; i < file_names.size(); i += kBatchSize) {
@@ -166,25 +151,27 @@ int main(int argc, char** argv) {
         // Preprocess
         cuda_batch_preprocess(img_batch, device_buffers[0], kObbInputW, kObbInputH, stream);
 
-        infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, decode_ptr_host,
-              decode_ptr_device, model_bboxes, cuda_post_process);
+        infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, model_bboxes);
 
-        
-        // TODO: REMOVE THIS AFTER DEBUGGING
-        //////////////////////////////////////////
-        float* host_input; 
-        cudaMallocHost((void**)&host_input, kBatchSize * 3 * kObbInputH * kObbInputW * sizeof(float));
-        cudaMemcpy(host_input, device_buffers[0], kBatchSize * 3 * kObbInputH * kObbInputW * sizeof(float), cudaMemcpyDeviceToHost);
-        std::ofstream inputfile("engine_input.txt", std::ios::app);
-        for (size_t b = 0; b < kBatchSize * 3 * kObbInputH * kObbInputW; b++) {
-            inputfile << host_input[b] << std::endl;
+        std::vector<std::vector<Detection>> res_batch;
+        batch_decode_obb(res_batch, output_buffer_host, img_batch.size(), kOutputSize);
+        draw_bbox_obb(img_batch, res_batch);
+        // Save images
+        for (size_t j = 0; j < img_batch.size(); j++) {
+            cv::imwrite("_" + img_name_batch[j], img_batch[j]);
         }
-        
-        std::ofstream outfile("engine_output.txt", std::ios::app);
-        for (size_t b = 0; b < kOutputSize; b++) {
-            outfile << output_buffer_host[b] << std::endl;
-        }
-        //////////////////////////////////////////
-        
     }
+
+    // Release stream and buffers
+    cudaStreamDestroy(stream);
+    CUDA_CHECK(cudaFree(device_buffers[0]));
+    CUDA_CHECK(cudaFree(device_buffers[1]));
+    delete[] output_buffer_host;
+    cuda_preprocess_destroy();
+    // Destroy the engine
+    delete context;
+    delete engine;
+    delete runtime;
+
+    return 0;
 }

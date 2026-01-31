@@ -122,69 +122,21 @@ static bool cmp(const Detection& a, const Detection& b) {
     return a.conf > b.conf;
 }
 
-void nms(std::vector<Detection>& res, float* output, float conf_thresh, float nms_thresh) {
+void decode(std::vector<Detection>& res, float* output) {
     int det_size = sizeof(Detection) / sizeof(float);
     std::map<float, std::vector<Detection>> m;
 
     for (int i = 0; i < output[0]; i++) {
-        if (output[1 + det_size * i + 4] <= conf_thresh || isnan(output[1 + det_size * i + 4]))
-            continue;
         Detection det;
         memcpy(&det, &output[1 + det_size * i], det_size * sizeof(float));
-        if (m.count(det.class_id) == 0)
-            m.emplace(det.class_id, std::vector<Detection>());
-        m[det.class_id].push_back(det);
-    }
-    for (auto it = m.begin(); it != m.end(); it++) {
-        auto& dets = it->second;
-        std::sort(dets.begin(), dets.end(), cmp);
-        for (size_t m = 0; m < dets.size(); ++m) {
-            auto& item = dets[m];
-            res.push_back(item);
-            for (size_t n = m + 1; n < dets.size(); ++n) {
-                if (iou(item.bbox, dets[n].bbox) > nms_thresh) {
-                    dets.erase(dets.begin() + n);
-                    --n;
-                }
-            }
-        }
+        res.push_back(det);
     }
 }
 
-void batch_nms(std::vector<std::vector<Detection>>& res_batch, float* output, int batch_size, int output_size,
-               float conf_thresh, float nms_thresh) {
+void batch_decode(std::vector<std::vector<Detection>>& res_batch, float* output, int batch_size, int output_size) {
     res_batch.resize(batch_size);
     for (int i = 0; i < batch_size; i++) {
-        nms(res_batch[i], &output[i * output_size], conf_thresh, nms_thresh);
-    }
-}
-
-void process_decode_ptr_host(std::vector<Detection>& res, const float* decode_ptr_host, int bbox_element, cv::Mat& img,
-                             int count) {
-    Detection det;
-    for (int i = 0; i < count; i++) {
-        int basic_pos = 1 + i * bbox_element;
-        int keep_flag = decode_ptr_host[basic_pos + 6];
-        if (keep_flag == 1) {
-            det.bbox[0] = decode_ptr_host[basic_pos + 0];
-            det.bbox[1] = decode_ptr_host[basic_pos + 1];
-            det.bbox[2] = decode_ptr_host[basic_pos + 2];
-            det.bbox[3] = decode_ptr_host[basic_pos + 3];
-            det.conf = decode_ptr_host[basic_pos + 4];
-            det.class_id = decode_ptr_host[basic_pos + 5];
-            res.push_back(det);
-        }
-    }
-}
-
-void batch_process(std::vector<std::vector<Detection>>& res_batch, const float* decode_ptr_host, int batch_size,
-                   int bbox_element, const std::vector<cv::Mat>& img_batch) {
-    res_batch.resize(batch_size);
-    int count = static_cast<int>(*decode_ptr_host);
-    count = std::min(count, kMaxNumOutputBbox);
-    for (int i = 0; i < batch_size; i++) {
-        auto& img = const_cast<cv::Mat&>(img_batch[i]);
-        process_decode_ptr_host(res_batch[i], &decode_ptr_host[i * count], bbox_element, img, count);
+        decode(res_batch[i], &output[i * output_size]);
     }
 }
 
@@ -301,36 +253,6 @@ void draw_mask_bbox(cv::Mat& img, std::vector<Detection>& dets, std::vector<cv::
     }
 }
 
-void process_decode_ptr_host_obb(std::vector<Detection>& res, const float* decode_ptr_host, int bbox_element,
-                                 cv::Mat& img, int count) {
-    Detection det;
-    for (int i = 0; i < count; i++) {
-        int basic_pos = 1 + i * bbox_element;
-        int keep_flag = decode_ptr_host[basic_pos + 6];
-        if (keep_flag == 1) {
-            det.bbox[0] = decode_ptr_host[basic_pos + 0];
-            det.bbox[1] = decode_ptr_host[basic_pos + 1];
-            det.bbox[2] = decode_ptr_host[basic_pos + 2];
-            det.bbox[3] = decode_ptr_host[basic_pos + 3];
-            det.conf = decode_ptr_host[basic_pos + 4];
-            det.class_id = decode_ptr_host[basic_pos + 5];
-            det.angle = decode_ptr_host[basic_pos + 7];
-            res.push_back(det);
-        }
-    }
-}
-
-void batch_process_obb(std::vector<std::vector<Detection>>& res_batch, const float* decode_ptr_host, int batch_size,
-                       int bbox_element, const std::vector<cv::Mat>& img_batch) {
-    res_batch.resize(batch_size);
-    int count = static_cast<int>(*decode_ptr_host);
-    count = std::min(count, kMaxNumOutputBbox);
-    for (int i = 0; i < batch_size; i++) {
-        auto& img = const_cast<cv::Mat&>(img_batch[i]);
-        process_decode_ptr_host_obb(res_batch[i], &decode_ptr_host[i * count], bbox_element, img, count);
-    }
-}
-
 std::tuple<float, float, float> convariance_matrix(Detection res) {
     float w = res.bbox[2];
     float h = res.bbox[3];
@@ -385,41 +307,21 @@ static float probiou(const Detection& res1, const Detection& res2, float eps = 1
     return 1 - hd;
 }
 
-void nms_obb(std::vector<Detection>& res, float* output, float conf_thresh, float nms_thresh) {
+void decode_obb(std::vector<Detection>& res, float* output) {
     int det_size = sizeof(Detection) / sizeof(float);
     std::map<float, std::vector<Detection>> m;
 
     for (int i = 0; i < output[0]; i++) {
-
-        if (output[1 + det_size * i + 4] <= conf_thresh)
-            continue;
         Detection det;
         memcpy(&det, &output[1 + det_size * i], det_size * sizeof(float));
-        if (m.count(det.class_id) == 0)
-            m.emplace(det.class_id, std::vector<Detection>());
-        m[det.class_id].push_back(det);
-    }
-    for (auto it = m.begin(); it != m.end(); it++) {
-        auto& dets = it->second;
-        std::sort(dets.begin(), dets.end(), cmp);
-        for (size_t m = 0; m < dets.size(); ++m) {
-            auto& item = dets[m];
-            res.push_back(item);
-            for (size_t n = m + 1; n < dets.size(); ++n) {
-                if (probiou(item, dets[n]) >= nms_thresh) {
-                    dets.erase(dets.begin() + n);
-                    --n;
-                }
-            }
-        }
+        res.push_back(det);
     }
 }
 
-void batch_nms_obb(std::vector<std::vector<Detection>>& res_batch, float* output, int batch_size, int output_size,
-                   float conf_thresh, float nms_thresh) {
+void batch_decode_obb(std::vector<std::vector<Detection>>& res_batch, float* output, int batch_size, int output_size) {
     res_batch.resize(batch_size);
     for (int i = 0; i < batch_size; i++) {
-        nms_obb(res_batch[i], &output[i * output_size], conf_thresh, nms_thresh);
+        decode_obb(res_batch[i], &output[i * output_size]);
     }
 }
 

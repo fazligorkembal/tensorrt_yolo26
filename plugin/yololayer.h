@@ -5,10 +5,13 @@
 #include "macros.h"
 
 namespace nvinfer1 {
+
+void setPluginDeviceParams(float confThreshold);
+
 class API YoloLayerPlugin : public IPluginV2IOExt {
    public:
-    YoloLayerPlugin(int classCount, int numberOfPoints, float confThresholdKeypoints, int inputWidth, int inputHeight,
-                    int maxDetections, bool isSegmentation, bool isPose, bool isObb, int anchor_count);
+    YoloLayerPlugin(int classCount, int numberOfPoints, int maxDetections, bool isDetection, bool isSegmentation,
+                    bool isPose, bool isObb, int anchor_count);
     YoloLayerPlugin(const void* data, size_t length);
 
     ~YoloLayerPlugin();
@@ -64,16 +67,13 @@ class API YoloLayerPlugin : public IPluginV2IOExt {
     void detachFromContext() TRT_NOEXCEPT override;
 
    private:
-    void gatherKernelLauncher(const float* const* inputs, float* outputs, cudaStream_t stream, int modelInputWidth,
-                              int modelInputHeight, int batchSize);
+    void gatherKernelLauncher(const float* const* inputs, float* outputs, cudaStream_t stream, int batchSize);
     int mThreadCount = 256;
     const char* mPluginNamespace = "";
     int mClassCount;
     int mNumberOfPoints;
-    float mConfThresholdKeypoints;
-    int mInputWidth;
-    int mInputHeight;
     int mMaxDetections;
+    bool mIsDetection;
     bool mIsSegmentation;
     bool mIsPose;
     bool mIsObb;

@@ -412,14 +412,11 @@ nvinfer1::ILayer* DWConv(nvinfer1::INetworkDefinition* network, std::map<std::st
 
 nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network, nvinfer1::ITensor& input,
                                        const std::vector<int>& strides, const std::vector<int>& fm_sizes,
-                                       int stridesLength, bool is_segmentation, bool is_pose, bool is_obb,
-                                       int anchorCount) {
+                                       int stridesLength, bool is_detection, bool is_segmentation, bool is_pose,
+                                       bool is_obb, int anchorCount) {
     auto creator = getPluginRegistry()->getPluginCreator("YoloLayer_TRT", "1");
-    const int netinfo_count = 9;
+    const int netinfo_count = 8;
     const int total_count = netinfo_count + stridesLength;
-    int input_width = kInputW;
-    int input_height = kInputH;
-
     int class_num = kNumClass;
     if (is_pose) {
         class_num = kPoseNumClass;
@@ -427,21 +424,17 @@ nvinfer1::IPluginV2Layer* addYoloLayer(nvinfer1::INetworkDefinition* network, nv
 
     if (is_obb) {
         class_num = kObbNumClass;
-        input_width = kObbInputW;
-        input_height = kObbInputH;
     }
 
     std::vector<int> combinedInfo(total_count);
     combinedInfo[0] = class_num;
     combinedInfo[1] = kNumberOfPoints;
-    combinedInfo[2] = kConfThreshKeypoints;
-    combinedInfo[3] = input_width;
-    combinedInfo[4] = input_height;
-    combinedInfo[5] = kMaxNumOutputBbox;
-    combinedInfo[6] = is_segmentation;
-    combinedInfo[7] = is_pose;
-    combinedInfo[8] = is_obb;
-    combinedInfo[9] = anchorCount;
+    combinedInfo[2] = kMaxNumOutputBbox;
+    combinedInfo[3] = is_detection;
+    combinedInfo[4] = is_segmentation;
+    combinedInfo[5] = is_pose;
+    combinedInfo[6] = is_obb;
+    combinedInfo[7] = anchorCount;
 
     nvinfer1::PluginField pluginField;
     pluginField.name = "combinedInfo";

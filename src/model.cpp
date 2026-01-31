@@ -296,23 +296,30 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     /////////////////////////////////////////////////////
 
-    nvinfer1::ISliceLayer* slice23_1 =
-            network->addSlice(*cat23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
-                              nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0],
-                                              cat23->getOutput(0)->getDimensions().d[1] / 2,
-                                              cat23->getOutput(0)->getDimensions().d[2]},
-                              nvinfer1::Dims3{1, 1, 1});
+    nvinfer1::ISliceLayer* slice23_1 = network->addSlice(
+            *cat23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
+            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0], cat23->getOutput(0)->getDimensions().d[1] / 2,
+                            cat23->getOutput(0)->getDimensions().d[2]},
+            nvinfer1::Dims3{1, 1, 1});
     nvinfer1::ISliceLayer* slice23 = network->addSlice(
             *cat23->getOutput(0), nvinfer1::Dims3{0, cat23->getOutput(0)->getDimensions().d[1] / 2, 0},
-            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0],
-                            cat23->getOutput(0)->getDimensions().d[1] / 2,
+            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0], cat23->getOutput(0)->getDimensions().d[1] / 2,
                             cat23->getOutput(0)->getDimensions().d[2]},
             nvinfer1::Dims3{1, 1, 1});
 
     // TODO: MAKE HARDCODED TO AUTOMATIC
     const int anchor_num = cat23->getOutput(0)->getDimensions().d[2];
-    std::vector<int> strides = {8, 16, 32};
-    std::vector<int> fm_sizes = {80, 40, 20};
+
+    std::vector<int> fm_sizes;
+    int fm_h_0 = block16->getOutput(0)->getDimensions().d[2];  // P3
+    int fm_h_1 = block19->getOutput(0)->getDimensions().d[2];  // P4
+    int fm_h_2 = block22->getOutput(0)->getDimensions().d[2];  // P5
+
+    fm_sizes.push_back(fm_h_0);
+    fm_sizes.push_back(fm_h_1);
+    fm_sizes.push_back(fm_h_2);
+
+    std::vector<int> strides = {kInputH / fm_h_0, kInputH / fm_h_1, kInputH / fm_h_2};
     std::vector<float> grid(anchor_num * 2);
     std::vector<float> stride_vec(anchor_num);
     std::fill(stride_vec.begin(), stride_vec.begin() + fm_sizes[0] * fm_sizes[0], strides[0]);
@@ -375,7 +382,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     int stridesLength = strides.size();
     nvinfer1::IPluginV2Layer* yolo = addYoloLayer(network, *transpose->getOutput(0), strides, fm_sizes, stridesLength,
-                                                  false, false, false, anchor_num);
+                                                  true, false, false, false, anchor_num);
     assert(yolo);
 
     ///////////////////////////////////////////////////////////
@@ -469,7 +476,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
     /*******************************************************************************************************
     *********************************************  YOLO26-Obb HEAD  ********************************************
     *******************************************************************************************************/
-   
+
     float scale[] = {1.0, 1.0, 2.0, 2.0};
     nvinfer1::IResizeLayer* upsample11 = network->addResize(*block10->getOutput(0));
     assert(upsample11);
@@ -517,7 +524,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
             C3K2(network, weightMap, *cat21->getOutput(0), get_width(1024, gw, max_channels),
                  get_width(1024, gw, max_channels), 1, true, true, true, 0.5,
                  "model.22");  // WARN: get_depth(2, gd) changed to 1.
-                 
+
     /*******************************************************************************************************
     *********************************************  YOLO26-Obb OUTPUT  ********************************************
     *******************************************************************************************************/
@@ -582,7 +589,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
     nvinfer1::IElementWiseLayer* conv23_one2one_cv4_0_1 =
             convBnSiLU(network, weightMap, *conv23_one2one_cv4_0_0->getOutput(0), c2 / 4, {3, 3}, 1,
                        "model.23.one2one_cv4.0.1", 1);
-        nvinfer1::IConvolutionLayer* conv23_one2one_cv4_0_2 = network->addConvolutionNd(
+    nvinfer1::IConvolutionLayer* conv23_one2one_cv4_0_2 = network->addConvolutionNd(
             *conv23_one2one_cv4_0_1->getOutput(0), 1, nvinfer1::DimsHW{1, 1},
             weightMap["model.23.one2one_cv4.0.2.weight"], weightMap["model.23.one2one_cv4.0.2.bias"]);
     conv23_one2one_cv4_0_2->setStrideNd(nvinfer1::DimsHW{1, 1});
@@ -605,109 +612,111 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
     nvinfer1::IShuffleLayer* reshape23_7 = network->addShuffle(*conv23_one2one_cv4_1_2->getOutput(0));
     reshape23_7->setReshapeDimensions(nvinfer1::Dims3{1, 1, -1});
 
-        nvinfer1::IElementWiseLayer* conv23_one2one_cv4_2_0 =
-                convBnSiLU(network, weightMap, *block22->getOutput(0), c2 / 4, {3, 3}, 1, "model.23.one2one_cv4.2.0", 1);
-        nvinfer1::IElementWiseLayer* conv23_one2one_cv4_2_1 =
-                convBnSiLU(network, weightMap, *conv23_one2one_cv4_2_0->getOutput(0), c2 / 4, {3, 3}, 1,
-                           "model.23.one2one_cv4.2.1", 1);
-        nvinfer1::IConvolutionLayer* conv23_one2one_cv4_2_2 = network->addConvolutionNd(
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv4_2_0 =
+            convBnSiLU(network, weightMap, *block22->getOutput(0), c2 / 4, {3, 3}, 1, "model.23.one2one_cv4.2.0", 1);
+    nvinfer1::IElementWiseLayer* conv23_one2one_cv4_2_1 =
+            convBnSiLU(network, weightMap, *conv23_one2one_cv4_2_0->getOutput(0), c2 / 4, {3, 3}, 1,
+                       "model.23.one2one_cv4.2.1", 1);
+    nvinfer1::IConvolutionLayer* conv23_one2one_cv4_2_2 = network->addConvolutionNd(
             *conv23_one2one_cv4_2_1->getOutput(0), 1, nvinfer1::DimsHW{1, 1},
             weightMap["model.23.one2one_cv4.2.2.weight"], weightMap["model.23.one2one_cv4.2.2.bias"]);
     conv23_one2one_cv4_2_2->setStrideNd(nvinfer1::DimsHW{1, 1});
     conv23_one2one_cv4_2_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv4_2_2->setNbGroups(1);
-        nvinfer1::IShuffleLayer* reshape23_8 = network->addShuffle(*conv23_one2one_cv4_2_2->getOutput(0));
+    nvinfer1::IShuffleLayer* reshape23_8 = network->addShuffle(*conv23_one2one_cv4_2_2->getOutput(0));
     reshape23_8->setReshapeDimensions(nvinfer1::Dims3{1, 1, -1});
 
-        nvinfer1::ITensor* inputTensors23_2[] = {reshape23_6->getOutput(0), reshape23_7->getOutput(0),
-                                                 reshape23_8->getOutput(0)};
-        nvinfer1::IConcatenationLayer* cat23_2 = network->addConcatenation(inputTensors23_2, 3);
+    nvinfer1::ITensor* inputTensors23_2[] = {reshape23_6->getOutput(0), reshape23_7->getOutput(0),
+                                             reshape23_8->getOutput(0)};
+    nvinfer1::IConcatenationLayer* cat23_2 = network->addConcatenation(inputTensors23_2, 3);
     cat23_2->setAxis(2);
 
     /////////////////////////////////////////////////////
-    nvinfer1::ISliceLayer* split23__0 = network->addSlice(*cat23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
-                                                    nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0],
-                                                                    cat23->getOutput(0)->getDimensions().d[1] / 2,
-                                                                    cat23->getOutput(0)->getDimensions().d[2]},
-                                                    nvinfer1::Dims3{1, 1, 1});
-    nvinfer1::ISliceLayer* split23__1 = network->addSlice(
-            *cat23->getOutput(0), nvinfer1::Dims3{0, cat23->getOutput(0)->getDimensions().d[1] / 2, 0},
-            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0],
-                            cat23->getOutput(0)->getDimensions().d[1] / 2,
+    nvinfer1::ISliceLayer* split23__0 = network->addSlice(
+            *cat23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
+            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0], cat23->getOutput(0)->getDimensions().d[1] / 2,
                             cat23->getOutput(0)->getDimensions().d[2]},
             nvinfer1::Dims3{1, 1, 1});
-    nvinfer1::IElementWiseLayer* sub23 = network->addElementWise(
-            *split23__1->getOutput(0), *split23__0->getOutput(0), nvinfer1::ElementWiseOperation::kSUB);
+    nvinfer1::ISliceLayer* split23__1 = network->addSlice(
+            *cat23->getOutput(0), nvinfer1::Dims3{0, cat23->getOutput(0)->getDimensions().d[1] / 2, 0},
+            nvinfer1::Dims3{cat23->getOutput(0)->getDimensions().d[0], cat23->getOutput(0)->getDimensions().d[1] / 2,
+                            cat23->getOutput(0)->getDimensions().d[2]},
+            nvinfer1::Dims3{1, 1, 1});
+    nvinfer1::IElementWiseLayer* sub23 = network->addElementWise(*split23__1->getOutput(0), *split23__0->getOutput(0),
+                                                                 nvinfer1::ElementWiseOperation::kSUB);
 
     // Divide by 2
     static float two = 2.0f;
     nvinfer1::Weights two_weights{nvinfer1::DataType::kFLOAT, &two, 1};
     nvinfer1::IConstantLayer* const_two = network->addConstant(nvinfer1::Dims3{1, 1, 1}, two_weights);
-    nvinfer1::IElementWiseLayer* div23 = network->addElementWise(
-            *sub23->getOutput(0), *const_two->getOutput(0), nvinfer1::ElementWiseOperation::kDIV);
+    nvinfer1::IElementWiseLayer* div23 = network->addElementWise(*sub23->getOutput(0), *const_two->getOutput(0),
+                                                                 nvinfer1::ElementWiseOperation::kDIV);
 
+    nvinfer1::ISliceLayer* split23_1__0 = network->addSlice(
+            *div23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
+            nvinfer1::Dims3{div23->getOutput(0)->getDimensions().d[0], div23->getOutput(0)->getDimensions().d[1] / 2,
+                            div23->getOutput(0)->getDimensions().d[2]},
+            nvinfer1::Dims3{1, 1, 1});
 
-
-    nvinfer1::ISliceLayer* split23_1__0 = network->addSlice(*div23->getOutput(0), nvinfer1::Dims3{0, 0, 0},
-                                                    nvinfer1::Dims3{div23->getOutput(0)->getDimensions().d[0],
-                                                                    div23->getOutput(0)->getDimensions().d[1] / 2,
-                                                                    div23->getOutput(0)->getDimensions().d[2]},
-                                                    nvinfer1::Dims3{1, 1, 1});
-    
     nvinfer1::ISliceLayer* split23_1__1 = network->addSlice(
-        *div23->getOutput(0), nvinfer1::Dims3{0, div23->getOutput(0)->getDimensions().d[1] / 2, 0},
-        nvinfer1::Dims3{div23->getOutput(0)->getDimensions().d[0],
-                        div23->getOutput(0)->getDimensions().d[1] / 2,
-                        div23->getOutput(0)->getDimensions().d[2]},
-        nvinfer1::Dims3{1, 1, 1});
+            *div23->getOutput(0), nvinfer1::Dims3{0, div23->getOutput(0)->getDimensions().d[1] / 2, 0},
+            nvinfer1::Dims3{div23->getOutput(0)->getDimensions().d[0], div23->getOutput(0)->getDimensions().d[1] / 2,
+                            div23->getOutput(0)->getDimensions().d[2]},
+            nvinfer1::Dims3{1, 1, 1});
 
     nvinfer1::IUnaryLayer* cos23 = network->addUnary(*cat23_2->getOutput(0), nvinfer1::UnaryOperation::kCOS);
     nvinfer1::IUnaryLayer* sin23 = network->addUnary(*cat23_2->getOutput(0), nvinfer1::UnaryOperation::kSIN);
 
-    nvinfer1::IElementWiseLayer* mul23 = network->addElementWise(
-        *split23_1__0->getOutput(0), *cos23->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
-    nvinfer1::IElementWiseLayer* mul23_1 = network->addElementWise(
-        *split23_1__1->getOutput(0), *sin23->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
-    nvinfer1::IElementWiseLayer* sub23_1 = network->addElementWise(
-        *mul23->getOutput(0), *mul23_1->getOutput(0), nvinfer1::ElementWiseOperation::kSUB);
-    
-    nvinfer1::IElementWiseLayer* mul23_2 = network->addElementWise(
-        *split23_1__0->getOutput(0), *sin23->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
-        nvinfer1::IElementWiseLayer* mul23_3 = network->addElementWise(
-        *split23_1__1->getOutput(0), *cos23->getOutput(0), nvinfer1::ElementWiseOperation::kPROD);
-    nvinfer1::IElementWiseLayer* add23 = network->addElementWise(
-        *mul23_2->getOutput(0), *mul23_3->getOutput(0), nvinfer1::ElementWiseOperation::kSUM);
+    nvinfer1::IElementWiseLayer* mul23 = network->addElementWise(*split23_1__0->getOutput(0), *cos23->getOutput(0),
+                                                                 nvinfer1::ElementWiseOperation::kPROD);
+    nvinfer1::IElementWiseLayer* mul23_1 = network->addElementWise(*split23_1__1->getOutput(0), *sin23->getOutput(0),
+                                                                   nvinfer1::ElementWiseOperation::kPROD);
+    nvinfer1::IElementWiseLayer* sub23_1 =
+            network->addElementWise(*mul23->getOutput(0), *mul23_1->getOutput(0), nvinfer1::ElementWiseOperation::kSUB);
+
+    nvinfer1::IElementWiseLayer* mul23_2 = network->addElementWise(*split23_1__0->getOutput(0), *sin23->getOutput(0),
+                                                                   nvinfer1::ElementWiseOperation::kPROD);
+    nvinfer1::IElementWiseLayer* mul23_3 = network->addElementWise(*split23_1__1->getOutput(0), *cos23->getOutput(0),
+                                                                   nvinfer1::ElementWiseOperation::kPROD);
+    nvinfer1::IElementWiseLayer* add23 = network->addElementWise(*mul23_2->getOutput(0), *mul23_3->getOutput(0),
+                                                                 nvinfer1::ElementWiseOperation::kSUM);
 
     nvinfer1::ITensor* tensor23[] = {sub23_1->getOutput(0), add23->getOutput(0)};
     nvinfer1::IConcatenationLayer* cat23_3 = network->addConcatenation(tensor23, 2);
     cat23_3->setAxis(1);
-    
+
+    std::vector<int> fm_sizes;
     int fm_h_0 = block16->getOutput(0)->getDimensions().d[2];  // P3
-    int fm_w_0 = block16->getOutput(0)->getDimensions().d[3];
     int fm_h_1 = block19->getOutput(0)->getDimensions().d[2];  // P4
-    int fm_w_1 = block19->getOutput(0)->getDimensions().d[3];
     int fm_h_2 = block22->getOutput(0)->getDimensions().d[2];  // P5
-    int fm_w_2 = block22->getOutput(0)->getDimensions().d[3];
-    int grid_num = fm_h_0 * fm_w_0 + fm_h_1 * fm_w_1 + fm_h_2 * fm_w_2;
+
+    fm_sizes.push_back(fm_h_0);
+    fm_sizes.push_back(fm_h_1);
+    fm_sizes.push_back(fm_h_2);
+
+    int grid_num = fm_h_0 * fm_h_0 + fm_h_1 * fm_h_1 + fm_h_2 * fm_h_2;
 
     assert((kObbInputH % fm_h_0) == 0 && (kObbInputH % fm_h_1) == 0 && (kObbInputH % fm_h_2) == 0);
-    assert((fm_h_0 == fm_w_0) && (fm_h_1 == fm_w_1) && (fm_h_2 == fm_w_2)); // square feature maps
+    assert((fm_h_0 == block16->getOutput(0)->getDimensions().d[3]) &&
+           (fm_h_1 == block19->getOutput(0)->getDimensions().d[3]) &&
+           (fm_h_2 == block22->getOutput(0)->getDimensions().d[3]));  // verify fm_w == fm_h
+
     assert(cat23_3->getOutput(0)->getDimensions().d[2] == grid_num);
-    
+
     int idx = 0;
     std::vector<float> grid(grid_num * 2);
-    auto fill_grid = [&](int fm_h, int fm_w) {
+    auto fill_grid = [&](int fm_h) {
         for (int y = 0; y < fm_h; ++y) {
-            for (int x = 0; x < fm_w; ++x) {
+            for (int x = 0; x < fm_h; ++x) {
                 grid[idx] = x + 0.5f;
                 grid[idx + grid_num] = y + 0.5f;
                 idx++;
             }
         }
     };
-    fill_grid(fm_h_0, fm_w_0);
-    fill_grid(fm_h_1, fm_w_1);
-    fill_grid(fm_h_2, fm_w_2);
+    fill_grid(fm_h_0);
+    fill_grid(fm_h_1);
+    fill_grid(fm_h_2);
 
     std::vector<float> stride_vec(grid_num);
     idx = 0;
@@ -720,26 +729,27 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
         }
     };
 
-    fill_stride(fm_h_0, fm_w_0, kObbInputH / fm_h_0);
-    fill_stride(fm_h_1, fm_w_1, kObbInputH / fm_h_1);
-    fill_stride(fm_h_2, fm_w_2, kObbInputH / fm_h_2);
+    std::vector<int> strides = {kObbInputH / fm_h_0, kObbInputH / fm_h_1, kObbInputH / fm_h_2};
+    fill_stride(fm_h_0, fm_h_0, strides[0]);
+    fill_stride(fm_h_1, fm_h_1, strides[1]);
+    fill_stride(fm_h_2, fm_h_2, strides[2]);
 
     nvinfer1::Dims gridDims{3, {1, 2, grid_num}};
     nvinfer1::IConstantLayer* constant_grid = network->addConstant(
-                gridDims, nvinfer1::Weights{nvinfer1::DataType::kFLOAT, grid.data(), (int64_t)grid.size()});
-    
+            gridDims, nvinfer1::Weights{nvinfer1::DataType::kFLOAT, grid.data(), (int64_t)grid.size()});
+
     nvinfer1::Dims strideDims{3, {1, 1, grid_num}};
-        nvinfer1::IConstantLayer* constant_stride = network->addConstant(
-                strideDims, nvinfer1::Weights{nvinfer1::DataType::kFLOAT, stride_vec.data(), (int64_t)stride_vec.size()});
+    nvinfer1::IConstantLayer* constant_stride = network->addConstant(
+            strideDims, nvinfer1::Weights{nvinfer1::DataType::kFLOAT, stride_vec.data(), (int64_t)stride_vec.size()});
 
-    nvinfer1::IElementWiseLayer* add23_1 = network->addElementWise(
-            *cat23_3->getOutput(0), *constant_grid->getOutput(0), nvinfer1::ElementWiseOperation::kSUM);
+    nvinfer1::IElementWiseLayer* add23_1 = network->addElementWise(*cat23_3->getOutput(0), *constant_grid->getOutput(0),
+                                                                   nvinfer1::ElementWiseOperation::kSUM);
 
-    nvinfer1::IElementWiseLayer* add23_2 = network->addElementWise(
-            *split23__0->getOutput(0), *split23__1->getOutput(0), nvinfer1::ElementWiseOperation::kSUM);
+    nvinfer1::IElementWiseLayer* add23_2 = network->addElementWise(*split23__0->getOutput(0), *split23__1->getOutput(0),
+                                                                   nvinfer1::ElementWiseOperation::kSUM);
 
     nvinfer1::ITensor* tensor23_4[] = {add23_1->getOutput(0), add23_2->getOutput(0)};
-        nvinfer1::IConcatenationLayer* cat23_4 = network->addConcatenation(tensor23_4, 2);
+    nvinfer1::IConcatenationLayer* cat23_4 = network->addConcatenation(tensor23_4, 2);
     cat23_4->setAxis(1);
 
     nvinfer1::IElementWiseLayer* mul23_4 = network->addElementWise(
@@ -792,15 +802,14 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
     reshape23_4->setReshapeDimensions(nvinfer1::Dims3{1, kObbNumClass, -1});
 
     nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_0;
-    if (type == "m" || type == "l" || type == "x")
-    {
-        conv23_one2one_cv3_2_0_0 = convBnSiLU(
-            network, weightMap, *block22->getOutput(0), c2 * 2, {3, 3}, 1, "model.23.one2one_cv3.2.0.0", c2 * 2);
-    }else{
-        conv23_one2one_cv3_2_0_0 = convBnSiLU(
-            network, weightMap, *block22->getOutput(0), c2 * 4, {3, 3}, 1, "model.23.one2one_cv3.2.0.0", c2 * 4);
+    if (type == "m" || type == "l" || type == "x") {
+        conv23_one2one_cv3_2_0_0 = convBnSiLU(network, weightMap, *block22->getOutput(0), c2 * 2, {3, 3}, 1,
+                                              "model.23.one2one_cv3.2.0.0", c2 * 2);
+    } else {
+        conv23_one2one_cv3_2_0_0 = convBnSiLU(network, weightMap, *block22->getOutput(0), c2 * 4, {3, 3}, 1,
+                                              "model.23.one2one_cv3.2.0.0", c2 * 4);
     }
-     
+
     nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_1 =
             convBnSiLU(network, weightMap, *conv23_one2one_cv3_2_0_0->getOutput(0), c3, {1, 1}, 1,
                        "model.23.one2one_cv3.2.0.1", 1);
@@ -819,27 +828,28 @@ nvinfer1::IHostMemory* buildEngineYolo26Obb(nvinfer1::IBuilder* builder, nvinfer
     nvinfer1::IShuffleLayer* reshape23_5 = network->addShuffle(*conv23_one2one_cv3_2_2->getOutput(0));
     reshape23_5->setReshapeDimensions(nvinfer1::Dims3{1, kObbNumClass, -1});
 
-    nvinfer1::ITensor* tensor23_1[] = {reshape23_3->getOutput(0), reshape23_4->getOutput(0),
-                                             reshape23_5->getOutput(0)};
+    nvinfer1::ITensor* tensor23_1[] = {reshape23_3->getOutput(0), reshape23_4->getOutput(0), reshape23_5->getOutput(0)};
     nvinfer1::IConcatenationLayer* cat23_1 = network->addConcatenation(tensor23_1, 3);
     cat23_1->setAxis(2);
     nvinfer1::IActivationLayer* sigmoid23 = network->addActivation(
             *cat23_1->getOutput(0),
             nvinfer1::ActivationType::kSIGMOID);  // TODO: THIS IS UNNESSARY, REMOVE AFTER PLUGIN IS READY
     /////////////////////////////////////////////////////
-    
+
     nvinfer1::ITensor* tensor23_5[] = {mul23_4->getOutput(0), sigmoid23->getOutput(0), cat23_2->getOutput(0)};
     nvinfer1::IConcatenationLayer* cat23_5 = network->addConcatenation(tensor23_5, 3);
     cat23_5->setAxis(1);
 
     nvinfer1::IShuffleLayer* transpose = network->addShuffle(*cat23_5->getOutput(0));
     transpose->setFirstTranspose(nvinfer1::Permutation{0, 2, 1});
-    //transpose->setReshapeDimensions(nvinfer1::Dims3{1, grid_num, 4 + 1 + kObbNumClass});
+
+    nvinfer1::IPluginV2Layer* yolo = addYoloLayer(network, *transpose->getOutput(0), strides, fm_sizes, strides.size(),
+                                                  false, false, false, true, grid_num);
 
     /////////////////////////////////////////////////////
 
-    transpose->getOutput(0)->setName(kOutputTensorName);
-    network->markOutput(*transpose->getOutput(0));
+    yolo->getOutput(0)->setName(kOutputTensorName);
+    network->markOutput(*yolo->getOutput(0));
     // Use setMemoryPoolLimit instead of deprecated setMaxWorkspaceSize
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 16 * (1 << 20));
 
