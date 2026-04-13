@@ -178,6 +178,7 @@ __device__ float Logist(float data) {
 __global__ void gatherKernel(const float* input, float* output, int num_elements, int anchor_count, int max_out_object,
                              int class_count, int nk, int output_elem, bool is_detection, bool is_segmentation,
                              bool is_pose, bool is_obb) {
+    
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= num_elements)
         return;

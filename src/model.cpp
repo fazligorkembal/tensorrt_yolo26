@@ -393,13 +393,14 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     //     transpose->getOutput(0)->setName(kOutputTensorName);
     //     network->markOutput(*transpose->getOutput(0));
 
-    // Below code is for debugging output dimensions
+    /* DEBUG: output dimensions
     {
         nvinfer1::Dims lastDims = yolo->getOutput(0)->getDimensions();
         std::cout << "[Det] Last layer output dims (" << lastDims.nbDims << "D): ";
         for (int i = 0; i < lastDims.nbDims; ++i)
             std::cout << lastDims.d[i] << (i + 1 < lastDims.nbDims ? " x " : "\n");
     }
+    */
 
     // Use setMemoryPoolLimit instead of deprecated setMaxWorkspaceSize
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 16 * (1 << 20));

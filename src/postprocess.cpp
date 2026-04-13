@@ -335,8 +335,7 @@ static std::vector<cv::Point> get_corner(cv::Mat& img, const Detection& box) {
     float h = box.bbox[3];
     float angle = box.angle * 180.0f / CV_PI;  // Convert radians to degrees
 
-    // Print original angle
-    std::cout << "Original angle: " << angle << std::endl;
+    // DEBUG: std::cout << "Original angle: " << angle << std::endl;
 
     // Swap width and height if height is greater than or equal to width
     if (h >= w) {
@@ -352,8 +351,7 @@ static std::vector<cv::Point> get_corner(cv::Mat& img, const Detection& box) {
         angle -= 180.0f;  // Subtract 180 from angles greater than 180
     }
 
-    // Print adjusted angle
-    std::cout << "Adjusted angle: " << angle << std::endl;
+    // DEBUG: std::cout << "Adjusted angle: " << angle << std::endl;
 
     // Convert to normal angle value
     float normal_angle = fmod(angle, 180.0f);
@@ -361,8 +359,7 @@ static std::vector<cv::Point> get_corner(cv::Mat& img, const Detection& box) {
         normal_angle += 180.0f;  // Ensure it's a positive value
     }
 
-    // Print normal angle value
-    std::cout << "Normal angle: " << normal_angle << std::endl;
+    // DEBUG: std::cout << "Normal angle: " << normal_angle << std::endl;
 
     cos_value = std::cos(angle * CV_PI / 180.0f);  // Convert to radians
     sin_value = std::sin(angle * CV_PI / 180.0f);

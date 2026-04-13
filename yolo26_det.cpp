@@ -76,13 +76,13 @@ void prepare_buffer(ICudaEngine* engine, float** input_buffer_device, float** ou
 
     *output_buffer_host = new float[kBatchSize * kOutputSize];
 
-    //DEBUG
+    /* DEBUG
     std::cout << "Input kBatchSize: " << kBatchSize << std::endl;
     std::cout << "Input kInputH: " << kInputH << std::endl;
     std::cout << "Input kInputW: " << kInputW << std::endl;
     std::cout << "Input buffer size (in floats): " << kBatchSize * 3 * kInputH * kInputW << std::endl;
     std::cout << "Output buffer size (in floats): " << kBatchSize * kOutputSize << std::endl;
-    //
+    */
 
 }
 
@@ -96,12 +96,14 @@ void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, flo
                                stream));
 
     auto end = std::chrono::system_clock::now();
+    /* DEBUG
     std::cout << "inference time: " << std::chrono::duration_cast<std::chrono::milliseconds>(end - start).count()
               << "ms" << std::endl;
+    */
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
 
-    //DEBUG
+    /* DEBUG
     std::cerr << "BELOW CODE IS FOR DEBUGGING PURPOSE ONLY, COMMENT IT OUT IN RUNTIME!" << std::endl;
     {
         std::ofstream ofs("output_engine.txt");
@@ -109,7 +111,7 @@ void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, flo
         for (size_t k = 0; k < total; ++k)
             ofs << output[k] << "\n";
     }
-    
+    */
 
 }
 
@@ -164,8 +166,8 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    //DEBUG
-    std::sort(file_names.begin(), file_names.end());
+    // DEBUG
+    // std::sort(file_names.begin(), file_names.end());
 
     prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host);
     
@@ -178,10 +180,13 @@ int main(int argc, char** argv) {
             img_batch.push_back(img);
             img_name_batch.push_back(file_names[j]);
 
-            // DEBUG
+            /* DEBUG
             std::cout << "Loaded image: " << file_names[j] << std::endl;
+            */
         }
+        /* DEBUG
         std::cout << "Processing batch of " << img_batch.size() << " images." << std::endl;
+        */
         // Preprocess
         cuda_batch_preprocess(img_batch, device_buffers[0], kInputW, kInputH, stream);
 
