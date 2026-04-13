@@ -14,6 +14,7 @@
 Logger gLogger;
 using namespace nvinfer1;
 const int kOutputSize = kMaxNumOutputBbox * sizeof(Detection) / sizeof(float) + 1;
+//const int kOutputSize = 8400 * 84; // DEBUG
 
 void serialize_engine(const std::string& wts_name, std::string& engine_name, float& gd, float& gw, int& max_channels,
                       std::string& type) {
@@ -74,6 +75,15 @@ void prepare_buffer(ICudaEngine* engine, float** input_buffer_device, float** ou
     CUDA_CHECK(cudaMalloc((void**)output_buffer_device, kBatchSize * kOutputSize * sizeof(float)));
 
     *output_buffer_host = new float[kBatchSize * kOutputSize];
+
+    //DEBUG
+    std::cout << "Input kBatchSize: " << kBatchSize << std::endl;
+    std::cout << "Input kInputH: " << kInputH << std::endl;
+    std::cout << "Input kInputW: " << kInputW << std::endl;
+    std::cout << "Input buffer size (in floats): " << kBatchSize * 3 * kInputH * kInputW << std::endl;
+    std::cout << "Output buffer size (in floats): " << kBatchSize * kOutputSize << std::endl;
+    //
+
 }
 
 void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, float* output, int batchsize,
@@ -90,6 +100,17 @@ void infer(IExecutionContext& context, cudaStream_t& stream, void** buffers, flo
               << "ms" << std::endl;
 
     CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    //DEBUG
+    std::cerr << "BELOW CODE IS FOR DEBUGGING PURPOSE ONLY, COMMENT IT OUT IN RUNTIME!" << std::endl;
+    {
+        std::ofstream ofs("output_engine.txt");
+        size_t total = batchsize * kOutputSize;
+        for (size_t k = 0; k < total; ++k)
+            ofs << output[k] << "\n";
+    }
+    
+
 }
 
 int main(int argc, char** argv) {
@@ -143,8 +164,11 @@ int main(int argc, char** argv) {
         return -1;
     }
 
-    prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host);
+    //DEBUG
+    std::sort(file_names.begin(), file_names.end());
 
+    prepare_buffer(engine, &device_buffers[0], &device_buffers[1], &output_buffer_host);
+    
     for (size_t i = 0; i < file_names.size(); i += kBatchSize) {
         // Get a batch of images
         std::vector<cv::Mat> img_batch;
@@ -153,11 +177,15 @@ int main(int argc, char** argv) {
             cv::Mat img = cv::imread(img_dir + "/" + file_names[j]);
             img_batch.push_back(img);
             img_name_batch.push_back(file_names[j]);
-        }
 
+            // DEBUG
+            std::cout << "Loaded image: " << file_names[j] << std::endl;
+        }
+        std::cout << "Processing batch of " << img_batch.size() << " images." << std::endl;
         // Preprocess
         cuda_batch_preprocess(img_batch, device_buffers[0], kInputW, kInputH, stream);
 
+        
         // Run inference
         infer(*context, stream, (void**)device_buffers, output_buffer_host, kBatchSize, model_bboxes);
 
@@ -172,6 +200,7 @@ int main(int argc, char** argv) {
             cv::imwrite("_" + img_name_batch[j], img_batch[j]);
         }
     }
+    
 
     // Release stream and buffers
     cudaStreamDestroy(stream);

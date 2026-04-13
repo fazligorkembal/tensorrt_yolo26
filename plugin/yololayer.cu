@@ -175,14 +175,17 @@ __device__ float Logist(float data) {
     return 1.f / (1.f + expf(-data));
 }
 
-__global__ void gatherKernel(const float* input, float* output, int num_elements, int max_out_object, int class_count,
-                             int nk, int output_elem, bool is_detection, bool is_segmentation, bool is_pose,
-                             bool is_obb) {
+__global__ void gatherKernel(const float* input, float* output, int num_elements, int anchor_count, int max_out_object,
+                             int class_count, int nk, int output_elem, bool is_detection, bool is_segmentation,
+                             bool is_pose, bool is_obb) {
     int idx = blockIdx.x * blockDim.x + threadIdx.x;
     if (idx >= num_elements)
         return;
 
-    int outputIdx = 0 * output_elem;  // TODO: ADD BATCH SUPPORT HERE
+    int batchIdx = idx / anchor_count;
+    int elemIdx  = idx % anchor_count;
+
+    int outputIdx = batchIdx * output_elem;
     int anchor_size = -1;
     float angle = 0.0f;
 
@@ -190,18 +193,23 @@ __global__ void gatherKernel(const float* input, float* output, int num_elements
         anchor_size = 4 + class_count;
     } else if (is_obb) {
         anchor_size = 5 + class_count;
-        angle = input[idx * (anchor_size) + 4 + class_count];
     }
 
-    float xmin = input[idx * (anchor_size) + 0];
-    float ymin = input[idx * (anchor_size) + 1];
-    float xmax = input[idx * (anchor_size) + 2];
-    float ymax = input[idx * (anchor_size) + 3];
+    const float* curInput = input + batchIdx * anchor_count * anchor_size;
+
+    if (is_obb) {
+        angle = curInput[elemIdx * anchor_size + 4 + class_count];
+    }
+
+    float xmin = curInput[elemIdx * anchor_size + 0];
+    float ymin = curInput[elemIdx * anchor_size + 1];
+    float xmax = curInput[elemIdx * anchor_size + 2];
+    float ymax = curInput[elemIdx * anchor_size + 3];
 
     float score = 0.0f;
     int class_id = -1;
     for (int c = 0; c < class_count; c++) {
-        float conf = input[idx * (anchor_size) + 4 + c];
+        float conf = curInput[elemIdx * anchor_size + 4 + c];
         if (conf > score) {
             score = conf;
             class_id = c;
@@ -245,27 +253,24 @@ __global__ void gatherKernel(const float* input, float* output, int num_elements
         det->angle = angle;
     }
 
-    // TODO: ADD KEYPOINTS, SEGMENTATION, OBB HERE
+    // TODO: ADD KEYPOINTS, SEGMENTATION HERE
 }
 
 void YoloLayerPlugin::gatherKernelLauncher(const float* const* inputs, float* outputs, cudaStream_t stream,
                                            int batchSize) {
-    // TODO: ADD BATCH SUPPORT, CURRENTLY ONLY BATCH=1 IS SUPPORTED
-    // TODO: ADD SEGMENTATION, POSE, OBB SUPPORT
-    // TODO: num_elem = batch_size * anchor_num
     const float* input = inputs[0];
 
     int outputElem = mMaxDetections * sizeof(Detection) / sizeof(float) + 1;
-    int num_elem = mAnchorCount;  // Use anchor count from model configuration
+    int num_elem = batchSize * mAnchorCount;
 
     dim3 blockSize(mThreadCount);
     dim3 gridSize((num_elem + mThreadCount - 1) / mThreadCount);
 
-    cudaMemsetAsync(outputs, 0, batchSize * outputElem * sizeof(float), stream);  // TODO: adjust for batch size
+    cudaMemsetAsync(outputs, 0, batchSize * outputElem * sizeof(float), stream);
 
-    gatherKernel<<<gridSize, blockSize, 0, stream>>>(input, outputs, num_elem, mMaxDetections, mClassCount,
-                                                     mNumberOfPoints, outputElem, mIsDetection, mIsSegmentation,
-                                                     mIsPose, mIsObb);
+    gatherKernel<<<gridSize, blockSize, 0, stream>>>(input, outputs, num_elem, mAnchorCount, mMaxDetections,
+                                                     mClassCount, mNumberOfPoints, outputElem, mIsDetection,
+                                                     mIsSegmentation, mIsPose, mIsObb);
 }
 
 PluginFieldCollection YoloLayerPluginCreator::mFC{};

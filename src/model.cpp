@@ -177,7 +177,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv3_0_2->setNbGroups(1);
 
     nvinfer1::IShuffleLayer* reshape23_3 = network->addShuffle(*conv23_one2one_cv3_0_2->getOutput(0));
-    reshape23_3->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
+    reshape23_3->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, kNumClass, -1});
 
     /////////////////////////////////////////////////////
 
@@ -199,7 +199,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv3_1_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv3_1_2->setNbGroups(1);
     nvinfer1::IShuffleLayer* reshape23_4 = network->addShuffle(*conv23_one2one_cv3_1_2->getOutput(0));
-    reshape23_4->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
+    reshape23_4->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, kNumClass, -1});
 
     /////////////////////////////////////////////////////
     nvinfer1::IElementWiseLayer* conv23_one2one_cv3_2_0_0;
@@ -227,7 +227,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv3_2_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv3_2_2->setNbGroups(1);
     nvinfer1::IShuffleLayer* reshape23_5 = network->addShuffle(*conv23_one2one_cv3_2_2->getOutput(0));
-    reshape23_5->setReshapeDimensions(nvinfer1::Dims3{1, kNumClass, -1});
+    reshape23_5->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, kNumClass, -1});
 
     /////////////////////////////////////////////////////
 
@@ -253,7 +253,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv2_0_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv2_0_2->setNbGroups(1);
     nvinfer1::IShuffleLayer* reshape23 = network->addShuffle(*conv23_one2one_cv2_0_2->getOutput(0));
-    reshape23->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    reshape23->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, 4, -1});
 
     /////////////////////////////////////////////////////
 
@@ -269,7 +269,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv2_1_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv2_1_2->setNbGroups(1);
     nvinfer1::IShuffleLayer* reshape23_1 = network->addShuffle(*conv23_one2one_cv2_1_2->getOutput(0));
-    reshape23_1->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    reshape23_1->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, 4, -1});
 
     /////////////////////////////////////////////////////
 
@@ -285,7 +285,7 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
     conv23_one2one_cv2_2_2->setPaddingNd(nvinfer1::DimsHW{0, 0});
     conv23_one2one_cv2_2_2->setNbGroups(1);
     nvinfer1::IShuffleLayer* reshape23_2 = network->addShuffle(*conv23_one2one_cv2_2_2->getOutput(0));
-    reshape23_2->setReshapeDimensions(nvinfer1::Dims3{1, 4, -1});
+    reshape23_2->setReshapeDimensions(nvinfer1::Dims3{kBatchSize, 4, -1});
 
     /////////////////////////////////////////////////////
 
@@ -389,6 +389,17 @@ nvinfer1::IHostMemory* buildEngineYolo26Det(nvinfer1::IBuilder* builder, nvinfer
 
     yolo->getOutput(0)->setName(kOutputTensorName);
     network->markOutput(*yolo->getOutput(0));
+
+    //     transpose->getOutput(0)->setName(kOutputTensorName);
+    //     network->markOutput(*transpose->getOutput(0));
+
+    // Below code is for debugging output dimensions
+    {
+        nvinfer1::Dims lastDims = yolo->getOutput(0)->getDimensions();
+        std::cout << "[Det] Last layer output dims (" << lastDims.nbDims << "D): ";
+        for (int i = 0; i < lastDims.nbDims; ++i)
+            std::cout << lastDims.d[i] << (i + 1 < lastDims.nbDims ? " x " : "\n");
+    }
 
     // Use setMemoryPoolLimit instead of deprecated setMaxWorkspaceSize
     config->setMemoryPoolLimit(nvinfer1::MemoryPoolType::kWORKSPACE, 16 * (1 << 20));

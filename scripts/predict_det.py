@@ -2,18 +2,18 @@ import os
 import onnx
 import numpy as np
 import onnxruntime
-from utils import preprocess_batch
+from utils import preprocess_batch, get_d2s
+import cv2
 
 
 model_path = "/home/user/Documents/tensorrt_yolo26/models/yolo26n_batch5.onnx"
 image_folder = "/home/user/Documents/tensorrt_yolo26/images/det"
-last_layer = "/model.23/Transpose_output_0"
+output_folder = "/home/user/Documents/tensorrt_yolo26/build/det_outputs"
 
-new_model_path = model_path.replace(".onnx", "_cropped.onnx")
+os.makedirs(output_folder, exist_ok=True)
 model = onnx.load(model_path)
 
 existing = [o.name for o in model.graph.output]
-
 
 def print_model_info(model):
     """Print model input/output and intermediate node information"""
@@ -39,33 +39,8 @@ def print_model_info(model):
     print(f"\nTotal nodes: {len(model.graph.node)}")
 
 
-def list_all_nodes(model):
-    """List all node outputs in the model"""
-    print("\n=== All Node Outputs ===")
-    for i, node in enumerate(model.graph.node):
-        print(f"[{i:4d}] {node.op_type:15s} -> {node.output}")
-
-
-print_model_info(model)
-list_all_nodes(model)
-
-
-input_names = [inp.name for inp in model.graph.input]
-output_names = [last_layer]
-
-onnx.utils.extract_model(model_path, new_model_path, input_names, output_names)
-
-model = onnx.load(new_model_path)
-
 
 ###############################################################################################################
-
-for node in model.graph.node:
-    print(f"{node.name} -> outputs: {node.output}")
-
-
-for node in model.graph.node:
-    print(f"{node.name} -> outputs: {node.output}")
 
 # model input shape and name
 input_name = model.graph.input[0].name
@@ -89,26 +64,33 @@ print(f"Input Image Batch Shape: {image_data.shape}")
 print(f"Input Image Batch Dtype: {image_data.dtype}")
 print(f"Input Image Batch Min/Max: {image_data.min()}/{image_data.max()}")
 
-image_data_flatten = image_data.flatten()
-with open(
-    "/home/user/Documents/tensorrt_yolo26/build/input_onnx.txt", "w"
-) as f:
-    for value in image_data_flatten:
-        f.write(f"{value}\n")
-
-sess = onnxruntime.InferenceSession(new_model_path, None)
+sess = onnxruntime.InferenceSession(model_path, None)
 input_name = sess.get_inputs()[0].name
-output = sess.run([last_layer], {input_name: image_data})[0]
-output_flatten = output.flatten()
-np.savetxt(
-    "/home/user/Documents/tensorrt_yolo26/build/output_onnx.txt",
-    output_flatten,
-    fmt="%f",
-)
-
+output = sess.run([model.graph.output[0].name], {input_name: image_data})[0]
 
 print(f"Model output type: {type(output)}")
 print(f"Model output shape: {output.shape}")
 print(f"Model output dtype: {output.dtype}")
+
+for i, result in enumerate(output):
+    image = cv2.imread(all_image_paths[i])
+    height, width = image.shape[:2]
+    d2s = get_d2s(width, height, dst_w=640, dst_h=640)
+    scale = d2s[0, 0]
+    tx = d2s[0, 2]
+    ty = d2s[1, 2]
+    for det in result:
+        bbox = det[:4]
+        conf = det[4]
+        class_id = det[5].astype(int)
+        if conf > 0.5:  # confidence threshold
+            x1 = int((bbox[0] - tx) / scale)
+            y1 = int((bbox[1] - ty) / scale)
+            x2 = int((bbox[2] - tx) / scale)
+            y2 = int((bbox[3] - ty) / scale)
+            cv2.rectangle(image, (x1, y1), (x2, y2), (0, 255, 0), 2)
+            cv2.putText(image, f"ID:{class_id} Conf:{conf:.2f}", (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
+    cv2.imwrite(f"{output_folder}/result_{i}.jpg", image)
+
 
 

@@ -1,3 +1,4 @@
+#include <fstream> // DEBUG
 #include "cuda_utils.h"
 #include "preprocess.h"
 
@@ -124,6 +125,21 @@ void cuda_batch_preprocess(std::vector<cv::Mat>& img_batch, float* dst, int dst_
                         dst_height, stream);
         CUDA_CHECK(cudaStreamSynchronize(stream));
     }
+
+    // DEBUG
+    std::cerr << "WARNING: BELOW CODE IS FOR DEBUGGING PURPOSES ONLY. IT WILL SAVE THE PREPROCESSED IMAGES TO DISK. COMMENT IT OUT IN RUNTIME." << std::endl;
+    float* debug_buffer_host = new float[dst_size * img_batch.size()];
+    CUDA_CHECK(cudaMemcpy(debug_buffer_host, dst, dst_size * img_batch.size() * sizeof(float), cudaMemcpyDeviceToHost));
+    CUDA_CHECK(cudaStreamSynchronize(stream));
+
+    {
+        std::ofstream ofs("input_engine.txt");
+        size_t total = dst_size * img_batch.size();
+        for (size_t k = 0; k < total; ++k)
+            ofs << debug_buffer_host[k] << "\n";
+    }
+    delete[] debug_buffer_host;
+
 }
 
 void cuda_preprocess_init(int max_image_size) {
